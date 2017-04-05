@@ -19,9 +19,12 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-
+	"bytes"
+//	"io/ioutil"
+	"os"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type DumpAccount struct {
@@ -36,6 +39,47 @@ type DumpAccount struct {
 type Dump struct {
 	Root     string                 `json:"root"`
 	Accounts map[string]DumpAccount `json:"accounts"`
+}
+
+// Dumps the code from all accounts
+
+func (self *StateDB) CodeDump() string {
+	var emptyCodeHash = crypto.Keccak256(nil)
+	it := self.trie.Iterator()
+	var count = 0
+	f, err := os.Create("/data/code_dump.dat")
+	if err != nil{
+			fmt.Printf("Aborted: %v", err)
+			return "Error"
+	}
+	defer f.Close()
+
+	for it.Next() {
+		count ++;
+		addr := self.trie.GetKey(it.Key)
+		var data Account
+		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
+			panic(err)
+		}
+		obj := newObject(nil, common.BytesToAddress(addr), data, nil)
+		if(!bytes.Equal(data.CodeHash , emptyCodeHash)){		
+			code := common.Bytes2Hex(obj.Code(self.db))
+			//filename := fmt.Sprintf("/data/code_dump/%x.dat",common.BytesToAddress(it.Key))
+			
+			if _, err := f.WriteString( fmt.Sprintf("%x %v\n", common.BytesToAddress(it.Key),code) ); err != nil{
+				fmt.Printf("Aborted: %v", err)
+				return "Error"				
+			}
+			f.Sync()
+			//ioutil.WriteFile(filename, []byte( code ), 0644)
+			fmt.Printf("Wrote [@ %v]\n" , count )
+			//fmt.Printf("Account    %x\n", common.BytesToAddress(addr))
+			//fmt.Printf("Key    %x\n", common.BytesToAddress(it.Key))
+			//fmt.Printf("Code: %v\n", code)
+		}
+
+	}
+	return "All ok"
 }
 
 func (self *StateDB) RawDump() Dump {
