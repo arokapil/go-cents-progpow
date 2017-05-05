@@ -21,6 +21,7 @@ func (g Genesis) MarshalJSON() ([]byte, error) {
 		ParentHash common.Hash                                 `json:"parentHash"`
 		ExtraData  hexutil.Bytes                               `json:"extraData"`
 		GasLimit   math.HexOrDecimal64                         `json:"gasLimit"   gencodec:"required"`
+		GasUsed    math.HexOrDecimal64                         `json:"gasUsed"`
 		Difficulty *math.HexOrDecimal256                       `json:"difficulty" gencodec:"required"`
 		Mixhash    common.Hash                                 `json:"mixHash"`
 		Coinbase   common.Address                              `json:"coinbase"`
@@ -33,6 +34,7 @@ func (g Genesis) MarshalJSON() ([]byte, error) {
 	enc.ParentHash = g.ParentHash
 	enc.ExtraData = g.ExtraData
 	enc.GasLimit = math.HexOrDecimal64(g.GasLimit)
+	enc.GasUsed = math.HexOrDecimal64(g.GasUsed)
 	enc.Difficulty = (*math.HexOrDecimal256)(g.Difficulty)
 	enc.Mixhash = g.Mixhash
 	enc.Coinbase = g.Coinbase
@@ -53,6 +55,7 @@ func (g *Genesis) UnmarshalJSON(input []byte) error {
 		ParentHash *common.Hash                                `json:"parentHash"`
 		ExtraData  hexutil.Bytes                               `json:"extraData"`
 		GasLimit   *math.HexOrDecimal64                        `json:"gasLimit"   gencodec:"required"`
+		GasUsed    *math.HexOrDecimal64                        `json:"gasUsed"`
 		Difficulty *math.HexOrDecimal256                       `json:"difficulty" gencodec:"required"`
 		Mixhash    *common.Hash                                `json:"mixHash"`
 		Coinbase   *common.Address                             `json:"coinbase"`
@@ -83,6 +86,9 @@ func (g *Genesis) UnmarshalJSON(input []byte) error {
 	g.GasLimit = uint64(*dec.GasLimit)
 	if dec.Difficulty == nil {
 		return errors.New("missing required field 'difficulty' for Genesis")
+	}
+	if dec.GasUsed != nil {
+		g.GasUsed = uint64(*dec.GasUsed)
 	}
 	g.Difficulty = (*big.Int)(dec.Difficulty)
 	if dec.Mixhash != nil {
