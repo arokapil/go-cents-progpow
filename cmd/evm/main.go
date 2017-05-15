@@ -78,6 +78,14 @@ var (
 		Name:  "nogasmetering",
 		Usage: "disable gas metering",
 	}
+	GenesisFlag = cli.StringFlag{
+		Name:  "prestate",
+		Usage: "JSON file with prestate (genesis) config",
+	}
+	MachineFlag = cli.BoolFlag{
+		Name:  "json",
+		Usage: "output trace logs in machine readable format (json)",
+	}
 )
 
 func init() {
@@ -93,6 +101,8 @@ func init() {
 		DumpFlag,
 		InputFlag,
 		DisableGasMeteringFlag,
+		GenesisFlag,
+		MachineFlag,
 	}
 	app.Commands = []cli.Command{
 		compileCommand,
