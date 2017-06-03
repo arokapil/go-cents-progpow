@@ -41,7 +41,8 @@ func (d destinations) has(codehash common.Hash, code []byte, dest *big.Int) bool
 		m = jumpdests(code)
 		d[codehash] = m
 	}
-	return (m[udest/8] & (1 << (udest % 8))) != 0
+	return OpCode(code[udest]) == JUMPDEST && (m[udest/8]&(1<<(udest%8))) != 0
+	//	return (m[udest/8] & (1 << (udest % 8))) != 0
 }
 
 // jumpdests creates a map that contains an entry for each
@@ -50,11 +51,13 @@ func jumpdests(code []byte) []byte {
 	m := make([]byte, len(code)/8+1)
 	for pc := uint64(0); pc < uint64(len(code)); pc++ {
 		op := OpCode(code[pc])
-		if op == JUMPDEST {
-			m[pc/8] |= 1 << (pc % 8)
-		} else if op >= PUSH1 && op <= PUSH32 {
-			a := uint64(op) - uint64(PUSH1) + 1
-			pc += a
+
+		if op >= PUSH1 && op <= PUSH32 {
+			a := pc + uint64(op) - uint64(PUSH1) + 1
+			for pc < a {
+				m[pc/8] |= 1 << (pc % 8)
+				pc++
+			}
 		}
 	}
 	return m
