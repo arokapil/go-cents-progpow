@@ -79,7 +79,6 @@ type StructLogJson struct {
 type structLogJsonMarshaling struct {
 	Stack []*math.HexOrDecimal256
 }
-type hexArray []*big.Int
 
 // MarshalJSON encodes StructLog for json output
 func (s StructLog) MarshalJSON() ([]byte, error) {
