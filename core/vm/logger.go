@@ -62,37 +62,28 @@ type StructLog struct {
 	Depth   int
 	Err     error
 }
-type StructLogJsonOut struct {
+
+//go:generate gencodec -type StructLogJson -field-override structLogJsonMarshaling -out gen_structlog_json.go
+type StructLogJson struct {
 	Pc      uint64              `json:"pc"`
 	Op      OpCode              `json:"op"`
 	OpName  string              `json:"opName"`
 	Gas     math.HexOrDecimal64 `json:"gas"`
 	GasCost math.HexOrDecimal64 `json:"gasCost"`
 	Memory  string              `json:"memory"`
-	Stack   hexArray            `json:"stack"`
+	Stack   []*big.Int          `json:"stack"`
 	//Storage map[common.Hash]common.Hash `json:"storage"`
-	Depth int `json:"depth"`
-	//Err     error
+	Depth int   `json:"depth"`
+	Err   error `json:"error"`
+}
+type structLogJsonMarshaling struct {
+	Stack []*math.HexOrDecimal256
 }
 type hexArray []*big.Int
 
-// MarshalJSON encodes the memory as 32-byte hex strings instead of bigints
-func (a hexArray) MarshalJSON() ([]byte, error) {
-
-	if items := ([]*big.Int)(a); len(items) > 0 {
-		hexitems := make([]*math.HexOrDecimal256, len(items))
-		for i, item := range items {
-			x := math.HexOrDecimal256(*item)
-			hexitems[i] = &x
-		}
-		return json.Marshal(hexitems)
-	}
-	return []byte("[]"), nil
-}
-
 // MarshalJSON encodes StructLog for json output
 func (s StructLog) MarshalJSON() ([]byte, error) {
-	var enc StructLogJsonOut
+	var enc StructLogJson
 	enc.Pc = s.Pc
 	enc.Op = s.Op
 	enc.OpName = s.Op.String()
@@ -104,6 +95,7 @@ func (s StructLog) MarshalJSON() ([]byte, error) {
 	enc.Stack = s.Stack
 	//enc.Storage = s.Storage
 	enc.Depth = s.Depth
+	enc.Err = s.Err
 	return json.Marshal(&enc)
 }
 
