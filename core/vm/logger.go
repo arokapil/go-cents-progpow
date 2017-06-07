@@ -18,7 +18,6 @@ package vm
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -102,12 +101,6 @@ type StructLogger struct {
 	changedValues map[common.Address]Storage
 }
 
-// JSONLogger merely contains a writer, and immediately outputs to that channel,
-// instead of collecting logs
-type JSONLogger struct {
-	encoder *json.Encoder
-}
-
 // NewStructLogger returns a new logger
 func NewStructLogger(cfg *LogConfig) *StructLogger {
 	logger := &StructLogger{
@@ -117,31 +110,6 @@ func NewStructLogger(cfg *LogConfig) *StructLogger {
 		logger.cfg = *cfg
 	}
 	return logger
-}
-
-// NewJSONLogger returns a new JSON logger
-func NewJSONLogger(writer io.Writer) *JSONLogger {
-	logger := &JSONLogger{
-		encoder: json.NewEncoder(writer),
-	}
-	return logger
-}
-
-// CaptureState outputs state information on the logger
-func (l *JSONLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, contract *Contract, depth int, err error) error {
-	log := StructLog{pc, op, gas + cost, cost, memory.Data(), stack.Data(), nil, env.depth, err}
-	return l.encoder.Encode(log)
-}
-func (l *JSONLogger) CaptureEnd(output []byte, gasUsed uint64, t time.Duration) error {
-	type endLog struct {
-		Output  string              `json:"output"`
-		GasUsed math.HexOrDecimal64 `json:"gasUsed"`
-		Time    time.Duration       `json:"time"`
-	}
-
-	log := endLog{common.Bytes2Hex(output), math.HexOrDecimal64(gasUsed), t}
-	return l.encoder.Encode(log)
-
 }
 
 // CaptureState logs a new structured log message and pushes it out to the environment
