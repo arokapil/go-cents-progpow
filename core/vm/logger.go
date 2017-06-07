@@ -51,51 +51,33 @@ type LogConfig struct {
 
 // StructLog is emitted to the EVM each cycle and lists information about the current internal state
 // prior to the execution of the statement.
+//go:generate gencodec -type StructLog -field-override structLogMarshaling -out gen_structlog.go
 type StructLog struct {
-	Pc      uint64
-	Op      OpCode
-	Gas     uint64
-	GasCost uint64
-	Memory  []byte
-	Stack   []*big.Int
-	Storage map[common.Hash]common.Hash
-	Depth   int
-	Err     error
+	Pc      uint64                      `json:"pc"`
+	Op      OpCode                      `json:"op"`
+	Gas     uint64                      `json:"gas"`
+	GasCost uint64                      `json:"gasCost"`
+	Memory  []byte                      `json:"memory"`
+	Stack   []*big.Int                  `json:"stack"`
+	Storage map[common.Hash]common.Hash `json:-`
+	Depth   int                         `json:"depth"`
+	Err     error                       `json:"error"`
 }
 
-//go:generate gencodec -type StructLogJson -field-override structLogJsonMarshaling -out gen_structlog_json.go
-type StructLogJson struct {
-	Pc      uint64              `json:"pc"`
-	Op      OpCode              `json:"op"`
-	OpName  string              `json:"opName"`
-	Gas     math.HexOrDecimal64 `json:"gas"`
-	GasCost math.HexOrDecimal64 `json:"gasCost"`
-	Memory  string              `json:"memory"`
-	Stack   []*big.Int          `json:"stack"`
-	//Storage map[common.Hash]common.Hash `json:"storage"`
-	Depth int   `json:"depth"`
-	Err   error `json:"error"`
-}
-type structLogJsonMarshaling struct {
-	Stack []*math.HexOrDecimal256
+func (s *StructLog) OpName() string {
+	return s.Op.String()
 }
 
-// MarshalJSON encodes StructLog for json output
-func (s StructLog) MarshalJSON() ([]byte, error) {
-	var enc StructLogJson
-	enc.Pc = s.Pc
-	enc.Op = s.Op
-	enc.OpName = s.Op.String()
-	enc.Gas = math.HexOrDecimal64(s.Gas)
-	enc.GasCost = math.HexOrDecimal64(s.GasCost)
-	//enc.Memory = fmt.Sprintf("0x%v", len(common.Bytes2Hex(s.Memory))/2)
-	enc.Memory = fmt.Sprintf("%v bytes", len(s.Memory))
+func (s *StructLog) MemorySize() string {
+	return fmt.Sprintf("%v", len(s.Memory))
+}
 
-	enc.Stack = s.Stack
-	//enc.Storage = s.Storage
-	enc.Depth = s.Depth
-	enc.Err = s.Err
-	return json.Marshal(&enc)
+type structLogMarshaling struct {
+	Stack      []*math.HexOrDecimal256
+	Gas        math.HexOrDecimal64
+	GasCost    math.HexOrDecimal64
+	OpName     string `json:"opName"`
+	MemorySize string `json:"memSize"`
 }
 
 // Tracer is used to collect execution traces from an EVM transaction
