@@ -25,65 +25,87 @@ import (
 // expected to be changed and modified. stack does not take care of adding newly
 // initialised objects.
 type Stack struct {
-	data []*big.Int
+	bottom int
+	top    int
+}
+
+type internalStack struct {
+	data  []*big.Int
+	index int
+	size  int
+}
+
+var sharedStack = &internalStack{
+	data:  make([]*big.Int, 0, 1024),
+	index: 0,
+	size:  1024,
 }
 
 func newstack() *Stack {
-	return &Stack{data: make([]*big.Int, 0, 1024)}
+	return &Stack{bottom: sharedStack.index, top: sharedStack.index}
+}
+
+func (st *Stack) Remove() {
+	sharedStack.index = st.bottom
 }
 
 func (st *Stack) Data() []*big.Int {
-	return st.data
+	return sharedStack.data[st.bottom:st.top]
 }
 
 func (st *Stack) push(d *big.Int) {
 	// NOTE push limit (1024) is checked in baseCheck
 	//stackItem := new(big.Int).Set(d)
 	//st.data = append(st.data, stackItem)
-	st.data = append(st.data, d)
-}
-func (st *Stack) pushN(ds ...*big.Int) {
-	st.data = append(st.data, ds...)
+	sharedStack.data = append(sharedStack.data, d)
+	st.top++
 }
 
+//func (st *Stack) pushN(ds ...*big.Int) {
+//	st.data = append(st.data, ds...)
+//}
+
 func (st *Stack) pop() (ret *big.Int) {
-	ret = st.data[len(st.data)-1]
-	st.data = st.data[:len(st.data)-1]
+	ret = sharedStack.data[len(sharedStack.data)-1]
+	st.top--
+	//	st.data = st.data[:len(st.data)-1]
 	return
 }
 
 func (st *Stack) len() int {
-	return len(st.data)
+	return st.top - st.bottom
 }
 
 func (st *Stack) swap(n int) {
-	st.data[st.len()-n], st.data[st.len()-1] = st.data[st.len()-1], st.data[st.len()-n]
+	l := len(sharedStack.data)
+	sharedStack.data[l-n], sharedStack.data[l-1] = sharedStack.data[l-1], sharedStack.data[l-n]
 }
 
 func (st *Stack) dup(pool *intPool, n int) {
-	st.push(pool.get().Set(st.data[st.len()-n]))
+	p := pool.get().Set(sharedStack.data[len(sharedStack.data)-n])
+	st.push(p)
 }
 
 func (st *Stack) peek() *big.Int {
-	return st.data[st.len()-1]
+	return sharedStack.data[len(sharedStack.data)-1]
 }
 
 // Back returns the n'th item in stack
 func (st *Stack) Back(n int) *big.Int {
-	return st.data[st.len()-n-1]
+	return sharedStack.data[len(sharedStack.data)-n-1]
 }
 
 func (st *Stack) require(n int) error {
 	if st.len() < n {
-		return fmt.Errorf("stack underflow (%d <=> %d)", len(st.data), n)
+		return fmt.Errorf("stack underflow (%d <=> %d)", st.len(), n)
 	}
 	return nil
 }
 
 func (st *Stack) Print() {
 	fmt.Println("### stack ###")
-	if len(st.data) > 0 {
-		for i, val := range st.data {
+	if len(st.Data()) > 0 {
+		for i, val := range st.Data() {
 			fmt.Printf("%-3d  %v\n", i, val)
 		}
 	} else {

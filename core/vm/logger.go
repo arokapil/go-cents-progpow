@@ -131,8 +131,8 @@ func (l *StructLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost ui
 	// it in the local storage container.
 	if op == SSTORE && stack.len() >= 2 {
 		var (
-			value   = common.BigToHash(stack.data[stack.len()-2])
-			address = common.BigToHash(stack.data[stack.len()-1])
+			value   = common.BigToHash(stack.Back(1))
+			address = common.BigToHash(stack.Back(0))
 		)
 		l.changedValues[contract.Address()][address] = value
 	}

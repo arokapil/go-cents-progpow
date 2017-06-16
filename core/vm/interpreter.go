@@ -143,6 +143,8 @@ func (in *Interpreter) Run(snapshot int, contract *Contract, input []byte) (ret 
 		gasCopy uint64 // for Tracer to log gas remaining before execution
 		logged bool // deferred Tracer should ignore already logged steps
 	)
+	defer func() { stack.Remove() }()
+
 	contract.Input = input
 
 	defer func() {
