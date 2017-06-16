@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"strconv"
 )
 
 // VMTest checks EVM execution without block or transaction context.
@@ -52,6 +53,51 @@ type vmJSON struct {
 	Pre           core.GenesisAlloc     `json:"pre"`
 	Post          core.GenesisAlloc     `json:"post"`
 	PostStateRoot common.Hash           `json:"postStateRoot"`
+}
+
+func BenchVmTest(p string, conf bconf, b *testing.B) error {
+	//fmt.Printf("Shared stack: %v\n", vm.Initialize())
+	tests := make(map[string]VmTest)
+	err := readJsonFile(p, &tests)
+	if err != nil {
+		return err
+	}
+
+	test, ok := tests[conf.name]
+	if !ok {
+		return fmt.Errorf("test not found: %s", conf.name)
+	}
+
+	env := make(map[string]string)
+	env["foo"] = fmt.Sprintf("stack %v", vm.Initialize())
+	env["currentCoinbase"] = test.Env.CurrentCoinbase
+	env["currentDifficulty"] = test.Env.CurrentDifficulty
+	env["currentGasLimit"] = test.Env.CurrentGasLimit
+	env["currentNumber"] = test.Env.CurrentNumber
+	env["previousHash"] = test.Env.PreviousHash
+	if n, ok := test.Env.CurrentTimestamp.(float64); ok {
+		env["currentTimestamp"] = strconv.Itoa(int(n))
+	} else {
+		env["currentTimestamp"] = test.Env.CurrentTimestamp.(string)
+	}
+
+	/*
+		if conf.precomp {
+			program := vm.NewProgram(test.code)
+			err := vm.AttachProgram(program)
+			if err != nil {
+				return err
+			}
+		}
+	*/
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchVmTest(test, env, b)
+	}
+
+	return nil
+
 }
 
 //go:generate gencodec -type vmExec -field-override vmExecMarshaling -out gen_vmexec.go

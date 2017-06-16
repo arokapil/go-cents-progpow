@@ -37,11 +37,15 @@ type internalStack struct {
 
 var sharedStack = initSharedStack()
 
+func Initialize() int {
+	return len(sharedStack.data)
+}
+
 func initSharedStack() *internalStack {
 	_stack := &internalStack{
 		index: 0,
 	}
-	_stack.resize(1024 * 1024)
+	_stack.resize(1024 * 5)
 	return _stack
 }
 
