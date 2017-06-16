@@ -21,7 +21,7 @@ import (
 	"math/big"
 )
 
-// stack is an object for basic stack operations. Items popped to the stack are
+// Stack is an object for basic stack operations. Items popped to the stack are
 // expected to be changed and modified. stack does not take care of adding newly
 // initialised objects.
 type Stack struct {
@@ -35,10 +35,26 @@ type internalStack struct {
 	size  int
 }
 
-var sharedStack = &internalStack{
-	data:  make([]*big.Int, 0, 1024),
-	index: 0,
-	size:  1024,
+var sharedStack = initSharedStack()
+
+func initSharedStack() *internalStack {
+	_stack := &internalStack{
+		index: 0,
+	}
+	_stack.resize(1024 * 1024)
+	return _stack
+}
+
+func (sstack *internalStack) resize(size int) {
+	data := make([]*big.Int, 0, size)
+	if sstack.data != nil {
+		copy(data, sstack.data)
+	}
+	//Fill it with BigInts
+	for i := len(data); len(data) < size; i++ {
+		data = append(data, new(big.Int))
+	}
+	sstack.data = data
 }
 
 func newstack() *Stack {
@@ -53,11 +69,30 @@ func (st *Stack) Data() []*big.Int {
 	return sharedStack.data[st.bottom:st.top]
 }
 
-func (st *Stack) push(d *big.Int) {
-	// NOTE push limit (1024) is checked in baseCheck
-	//stackItem := new(big.Int).Set(d)
-	//st.data = append(st.data, stackItem)
-	sharedStack.data = append(sharedStack.data, d)
+//func (st *Stack) push(d *big.Int) {
+//	// NOTE push limit (1024) is checked in baseCheck
+//	//stackItem := new(big.Int).Set(d)
+//	//st.data = append(st.data, stackItem)
+//	sharedStack.data = append(sharedStack.data, d)
+//	st.top++
+//}
+
+func (st *Stack) pushBytes(bytes []byte) {
+	sharedStack.data[st.top].SetBytes(bytes)
+	st.top++
+}
+
+func (st *Stack) pushBigint(d *big.Int) {
+	sharedStack.data[st.top].Set(d)
+	st.top++
+}
+func (st *Stack) pushInt64(i int64) {
+	sharedStack.data[st.top].SetInt64(i)
+	st.top++
+}
+
+func (st *Stack) pushUint64(i uint64) {
+	sharedStack.data[st.top].SetUint64(i)
 	st.top++
 }
 
@@ -66,10 +101,16 @@ func (st *Stack) push(d *big.Int) {
 //}
 
 func (st *Stack) pop() (ret *big.Int) {
-	ret = sharedStack.data[len(sharedStack.data)-1]
 	st.top--
-	//	st.data = st.data[:len(st.data)-1]
-	return
+	return sharedStack.data[st.top]
+}
+func (st *Stack) popInt64() (ret int64) {
+	st.top--
+	return sharedStack.data[st.top].Int64()
+}
+func (st *Stack) popUint64() (ret uint64) {
+	st.top--
+	return sharedStack.data[st.top].Uint64()
 }
 
 func (st *Stack) len() int {
@@ -77,22 +118,22 @@ func (st *Stack) len() int {
 }
 
 func (st *Stack) swap(n int) {
-	l := len(sharedStack.data)
+	l := st.top
 	sharedStack.data[l-n], sharedStack.data[l-1] = sharedStack.data[l-1], sharedStack.data[l-n]
 }
 
 func (st *Stack) dup(pool *intPool, n int) {
-	p := pool.get().Set(sharedStack.data[len(sharedStack.data)-n])
-	st.push(p)
+	sharedStack.data[st.top].Set(sharedStack.data[st.top-n])
+	st.top++
 }
 
 func (st *Stack) peek() *big.Int {
-	return sharedStack.data[len(sharedStack.data)-1]
+	return sharedStack.data[st.top-1]
 }
 
 // Back returns the n'th item in stack
 func (st *Stack) Back(n int) *big.Int {
-	return sharedStack.data[len(sharedStack.data)-n-1]
+	return sharedStack.data[st.top-n-1]
 }
 
 func (st *Stack) require(n int) error {
