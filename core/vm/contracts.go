@@ -60,10 +60,14 @@ var PrecompiledContractsMetropolis = map[common.Address]PrecompiledContract{
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
-func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract) (ret []byte, err error) {
+func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract) ([]byte, error){
 	gas := p.RequiredGas(input)
 	if contract.UseGas(gas) {
-		return p.Run(input)
+		retval, ignored_error := p.Run(input)
+		if ignored_error != nil{
+			return nil, nil
+		}
+		return retval, nil
 	}
 	return nil, ErrOutOfGas
 }
