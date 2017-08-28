@@ -583,6 +583,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 			delete(pool.all, old.Hash())
 			pool.priced.Removed()
 			pendingReplaceCounter.Inc(1)
+			log.Info("Replaced transaction", "from", from, "to", tx.To(), "oldHash", old.Hash(), "newHash",hash )
 		}
 		pool.all[tx.Hash()] = tx
 		pool.priced.Put(tx)
@@ -667,7 +668,7 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 	if old != nil {
 		delete(pool.all, old.Hash())
 		pool.priced.Removed()
-
+		log.Info("Replaced transaction", "from", addr, "to", tx.To(), "oldHash", old.Hash(), "newHash",hash )
 		pendingReplaceCounter.Inc(1)
 	}
 	// Failsafe to work around direct pending inserts (tests)
