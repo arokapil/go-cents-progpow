@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"os"
 )
 
 // StateTest checks transaction processing without block context.
@@ -136,6 +137,7 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) error {
 	}
 	context := core.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
 	context.GetHash = vmTestBlockHash
+
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 
 	gaspool := new(core.GasPool)
@@ -149,6 +151,8 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) error {
 	}
 	root, _ := statedb.CommitTo(db, config.IsEIP158(block.Number()))
 	if root != common.Hash(post.Root) {
+		fmt.Fprintf(os.Stderr,"\n\n")
+		fmt.Fprintln(os.Stderr, string(statedb.Dump()))
 		return fmt.Errorf("post state root mismatch: got %x, want %x", root, post.Root)
 	}
 	return nil

@@ -97,7 +97,7 @@ func stateTestCmd(ctx *cli.Context) error {
 				Fork: st.Fork,
 				Pass: true,
 			}
-
+			fmt.Fprintf(os.Stderr,"## Fork %s\n\n", st.Fork)
 			if err = test.Run(st, cfg); err != nil {
 				result.Error = err.Error()
 				result.Pass = false
