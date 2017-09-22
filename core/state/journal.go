@@ -33,9 +33,7 @@ type (
 	createObjectChange struct {
 		account *common.Address
 	}
-	resetObjectChange struct {
-		prev *stateObject
-	}
+
 	suicideChange struct {
 		account     *common.Address
 		prev        bool // whether account had already suicided
@@ -71,19 +69,15 @@ type (
 		hash common.Hash
 	}
 	touchChange struct {
-		account   *common.Address
-		prev      bool
-		prevDirty bool
+		account     *common.Address
+		prev        bool
+		prevOnDirty func(addr common.Address)
 	}
 )
 
 func (ch createObjectChange) undo(s *StateDB) {
 	delete(s.stateObjects, *ch.account)
 	delete(s.stateObjectsDirty, *ch.account)
-}
-
-func (ch resetObjectChange) undo(s *StateDB) {
-	s.setStateObject(ch.prev)
 }
 
 func (ch suicideChange) undo(s *StateDB) {
@@ -94,12 +88,11 @@ func (ch suicideChange) undo(s *StateDB) {
 	}
 }
 
-var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
-
 func (ch touchChange) undo(s *StateDB) {
-	if !ch.prev && *ch.account != ripemd {
+	if !ch.prev {
 		s.getStateObject(*ch.account).touched = ch.prev
-		if !ch.prevDirty {
+		s.getStateObject(*ch.account).onDirty = ch.prevOnDirty
+		if ch.prevOnDirty != nil {
 			delete(s.stateObjectsDirty, *ch.account)
 		}
 	}

@@ -400,7 +400,11 @@ func (self *StateDB) createObject(addr common.Address) (newobj, prev *stateObjec
 	if prev == nil {
 		self.journal = append(self.journal, createObjectChange{account: &addr})
 	} else {
-		self.journal = append(self.journal, resetObjectChange{prev: prev})
+		self.journal = append(self.journal, touchChange{
+			account:     &addr,
+			prev:        prev.touched,
+			prevOnDirty: prev.onDirty,
+		})
 	}
 	self.setStateObject(newobj)
 	return newobj, prev
@@ -578,6 +582,7 @@ func (s *StateDB) CommitTo(dbw trie.DatabaseWriter, deleteEmptyObjects bool) (ro
 	// Commit objects to the trie.
 	for addr, stateObject := range s.stateObjects {
 		_, isDirty := s.stateObjectsDirty[addr]
+		//log.Debug("Checking state object","addr",stateObject.address.Hex(),"isDirty", isDirty,"isEmpty",stateObject.empty() )
 		switch {
 		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):
 			// If the object has been removed, don't bother syncing it

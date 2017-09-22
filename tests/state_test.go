@@ -34,18 +34,6 @@ func TestState(t *testing.T) {
 	// Broken tests:
 	st.skipLoad(`^stTransactionTest/OverflowGasRequire\.json`) // gasLimit > 256 bits
 	st.skipLoad(`^stTransactionTest/zeroSigTransa[^/]*\.json`) // EIP-86 is not supported yet
-	// Expected failures:
-	st.fails(`^stRevertTest/RevertPrecompiledTouch\.json/EIP158`, "bug in test")
-	st.fails(`^stRevertTest/RevertPrefoundEmptyOOG\.json/EIP158`, "bug in test")
-	st.fails(`^stRevertTest/RevertPrecompiledTouch\.json/Byzantium`, "bug in test")
-	st.fails(`^stRevertTest/RevertPrefoundEmptyOOG\.json/Byzantium`, "bug in test")
-	st.fails( `^stRandom/randomStatetest645\.json/EIP150/.*`, "known bug #15119")
-	st.fails( `^stRandom/randomStatetest645\.json/Frontier/.*`, "known bug #15119")
-	st.fails( `^stRandom/randomStatetest645\.json/Homestead/.*`, "known bug #15119")
-	st.fails( `^stRandom/randomStatetest644\.json/EIP150/.*`, "known bug #15119")
-	st.fails( `^stRandom/randomStatetest644\.json/Frontier/.*`, "known bug #15119")
-	st.fails( `^stRandom/randomStatetest644\.json/Homestead/.*`, "known bug #15119")
-
 
 	st.walk(t, stateTestDir, func(t *testing.T, name string, test *StateTest) {
 		for _, subtest := range test.Subtests() {
