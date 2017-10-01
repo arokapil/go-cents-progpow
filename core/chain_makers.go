@@ -208,9 +208,9 @@ func makeHeader(config *params.ChainConfig, parent *types.Block, state *state.St
 	} else {
 		time = new(big.Int).Add(parent.Time(), big.NewInt(10)) // block time is fixed at 10 seconds
 	}
-
+	root,_ := state.IntermediateRoot(config.IsEIP158(parent.Number()))
 	return &types.Header{
-		Root:       state.IntermediateRoot(config.IsEIP158(parent.Number())),
+		Root:       root,
 		ParentHash: parent.Hash(),
 		Coinbase:   parent.Coinbase(),
 		Difficulty: ethash.CalcDifficulty(config, time.Uint64(), &types.Header{

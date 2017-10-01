@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"fmt"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -105,10 +106,20 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 
 	// Update the state with pending changes
 	var root []byte
+	var touchedAddrs []common.Address
 	if config.IsByzantium(header.Number) {
-		statedb.Finalise(true)
+		touchedAddrs = statedb.Finalise(true)
 	} else {
-		root = statedb.IntermediateRoot(config.IsEIP158(header.Number)).Bytes()
+		var x common.Hash
+		x, touchedAddrs = statedb.IntermediateRoot(config.IsEIP158(header.Number))
+		root = x.Bytes()
+	}
+
+	if touchedAddrs != nil{
+		fmt.Printf("Touched accounts block %v tx %v\n", header.Number.Uint64(), tx.Hash())
+		for _,addr := range(touchedAddrs){
+			fmt.Printf("* `%v`\n" , addr.Hex())
+		}
 	}
 	usedGas.Add(usedGas, gas)
 

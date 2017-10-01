@@ -73,6 +73,7 @@ type StateDB struct {
 	nextRevisionId int
 
 	lock sync.Mutex
+	logStateChanges bool
 }
 
 // Create a new state from a given trie
@@ -89,6 +90,7 @@ func New(root common.Hash, db Database) (*StateDB, error) {
 		refund:            new(big.Int),
 		logs:              make(map[common.Hash][]*types.Log),
 		preimages:         make(map[common.Hash][]byte),
+		logStateChanges:   true,
 	}, nil
 }
 
@@ -514,7 +516,11 @@ func (self *StateDB) GetRefund() *big.Int {
 
 // Finalise finalises the state by removing the self destructed objects
 // and clears the journal as well as the refunds.
-func (s *StateDB) Finalise(deleteEmptyObjects bool) {
+func (s *StateDB) Finalise(deleteEmptyObjects bool) []common.Address{
+	var dirtyAddresses []common.Address
+	if s.logStateChanges{
+		dirtyAddresses = make([]common.Address, len(s.stateObjectsDirty))
+	}
 	for addr := range s.stateObjectsDirty {
 		stateObject := s.stateObjects[addr]
 		if stateObject.suicided || (deleteEmptyObjects && stateObject.empty()) {
@@ -523,17 +529,21 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			stateObject.updateRoot(s.db)
 			s.updateStateObject(stateObject)
 		}
+		if s.logStateChanges{
+			dirtyAddresses = append(dirtyAddresses, addr)
+		}
 	}
 	// Invalidate journal because reverting across transactions is not allowed.
 	s.clearJournalAndRefund()
+	return dirtyAddresses
 }
 
 // IntermediateRoot computes the current root hash of the state trie.
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
-func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
-	s.Finalise(deleteEmptyObjects)
-	return s.trie.Hash()
+func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) (common.Hash, []common.Address) {
+	dirtied := s.Finalise(deleteEmptyObjects)
+	return s.trie.Hash(), dirtied
 }
 
 // Prepare sets the current transaction hash and index and block hash which is
