@@ -23,8 +23,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"io"
+	"os"
 )
 
+// DumpAccount represents an account in the state
 type DumpAccount struct {
 	Balance  string            `json:"balance"`
 	Nonce    uint64            `json:"nonce"`
@@ -34,16 +37,76 @@ type DumpAccount struct {
 	Storage  map[string]string `json:"storage"`
 }
 
+// For output in a collected format, as one large map
 type Dump struct {
 	Root     string                 `json:"root"`
 	Accounts map[string]DumpAccount `json:"accounts"`
 }
 
-func (self *StateDB) RawDump() Dump {
-	dump := Dump{
-		Root:     fmt.Sprintf("%x", self.trie.Hash()),
+// DumpAccountFull is the same as DumpAccount but also with address, for standalone printing
+type DumpAccountFull struct {
+	Address  string            `json:"address"`
+	Balance  string            `json:"balance"`
+	Nonce    uint64            `json:"nonce"`
+	Root     string            `json:"root"`
+	CodeHash string            `json:"codeHash"`
+	Code     string            `json:"code"`
+	Storage  map[string]string `json:"storage"`
+}
+
+// For line-by-line json output
+type IterativeDump struct {
+	encoder *json.Encoder
+}
+
+// Collector interface which the state trie calls during iteration
+type collector interface {
+	onRoot(common.Hash)
+	onAccount(string, DumpAccount)
+}
+
+func newCollectingDump() *Dump {
+	return &Dump{
 		Accounts: make(map[string]DumpAccount),
 	}
+}
+
+func newIterativeDump(w io.Writer) *IterativeDump {
+	return &IterativeDump{
+		encoder: json.NewEncoder(w),
+	}
+}
+
+func (self *Dump) onRoot(root common.Hash) {
+	self.Root = fmt.Sprintf("%x", root)
+}
+
+func (self *Dump) onAccount(addr string, account DumpAccount) {
+	self.Accounts[addr] = account
+}
+
+func (self *IterativeDump) onAccount(addr string, account DumpAccount) {
+	self.encoder.Encode(&DumpAccountFull{
+		addr,
+		account.Balance,
+		account.Nonce,
+		account.Root,
+		account.CodeHash,
+		account.Code,
+		account.Storage,
+	})
+}
+func (self *IterativeDump) onRoot(root common.Hash) {
+	self.encoder.Encode(struct {
+		Root string `json:"root"`
+	}{
+		common.Bytes2Hex(root.Bytes()),
+	})
+}
+
+func (self *StateDB) performDump(c collector) {
+
+	c.onRoot(self.trie.Hash())
 
 	it := trie.NewIterator(self.trie.NodeIterator(nil))
 	for it.Next() {
@@ -66,16 +129,30 @@ func (self *StateDB) RawDump() Dump {
 		for storageIt.Next() {
 			account.Storage[common.Bytes2Hex(self.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(storageIt.Value)
 		}
-		dump.Accounts[common.Bytes2Hex(addr)] = account
+		c.onAccount(common.Bytes2Hex(addr), account)
 	}
-	return dump
 }
 
+// RawDump returns the entire state an a single large object
+func (self *StateDB) RawDump() Dump {
+
+	dump := newCollectingDump()
+	self.performDump(dump)
+	return *dump
+}
+
+// Dump returns a JSON string representing the entire state as a single json-object
 func (self *StateDB) Dump() []byte {
-	json, err := json.MarshalIndent(self.RawDump(), "", "    ")
+	dump := newCollectingDump()
+	self.performDump(dump)
+	json, err := json.MarshalIndent(dump, "", "    ")
 	if err != nil {
 		fmt.Println("dump err", err)
 	}
-
 	return json
+}
+
+// IterativeDump dumps out accounts as json-objects, delimited by linebreaks on stdout
+func (self *StateDB) IterativeDump() {
+	self.performDump(newIterativeDump(os.Stdout))
 }

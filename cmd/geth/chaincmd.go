@@ -163,6 +163,7 @@ Remove blockchain and state databases`,
 			utils.DataDirFlag,
 			utils.CacheFlag,
 			utils.LightModeFlag,
+			utils.IterativeOutputFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -459,7 +460,11 @@ func dump(ctx *cli.Context) error {
 			if err != nil {
 				utils.Fatalf("could not create new state: %v", err)
 			}
-			fmt.Printf("%s\n", state.Dump())
+			if ctx.GlobalIsSet(utils.IterativeOutputFlag.Name) {
+				state.IterativeDump()
+			} else {
+				fmt.Printf("%s\n", state.Dump())
+			}
 		}
 	}
 	chainDb.Close()
