@@ -198,6 +198,15 @@ type BlockChain interface {
 
 	// InsertReceiptChain inserts a batch of receipts into the local chain.
 	InsertReceiptChain(types.Blocks, []types.Receipts) (int, error)
+
+	// CurrentNumber retrieves number of the current head block
+	CurrentNumber() uint64
+
+	// CurrentNumber retrieves number of the current head fast block
+	CurrentFastNumber() uint64
+
+	// CurrentTD retrives the total difficulty of the current head block
+	CurrentTD() *big.Int
 }
 
 // New creates a new downloader to fetch hashes and blocks from remote peers.
@@ -604,9 +613,9 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 
 	p.log.Debug("Looking for common ancestor", "local", ceil, "remote", height)
 	if d.mode == FullSync {
-		ceil = d.blockchain.CurrentBlock().NumberU64()
+		ceil = d.blockchain.CurrentNumber()
 	} else if d.mode == FastSync {
-		ceil = d.blockchain.CurrentFastBlock().NumberU64()
+		ceil = d.blockchain.CurrentFastNumber()
 	}
 	if ceil >= MaxForkAncestry {
 		floor = int64(ceil - MaxForkAncestry)
@@ -1156,16 +1165,16 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 			for i, header := range rollback {
 				hashes[i] = header.Hash()
 			}
-			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number, common.Big0, common.Big0
+			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number, uint64(0), uint64(0)
 			if d.mode != LightSync {
-				lastFastBlock = d.blockchain.CurrentFastBlock().Number()
-				lastBlock = d.blockchain.CurrentBlock().Number()
+				lastFastBlock = d.blockchain.CurrentFastNumber()
+				lastBlock = d.blockchain.CurrentNumber()
 			}
 			d.lightchain.Rollback(hashes)
-			curFastBlock, curBlock := common.Big0, common.Big0
+			curFastBlock, curBlock := uint64(0), uint64(0)
 			if d.mode != LightSync {
-				curFastBlock = d.blockchain.CurrentFastBlock().Number()
-				curBlock = d.blockchain.CurrentBlock().Number()
+				curFastBlock = d.blockchain.CurrentFastNumber()
+				curBlock = d.blockchain.CurrentNumber()
 			}
 			log.Warn("Rolled back headers", "count", len(hashes),
 				"header", fmt.Sprintf("%d->%d", lastHeader, d.lightchain.CurrentHeader().Number),
@@ -1218,7 +1227,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 				// L: Request new headers up from 11 (R's TD was higher, it must have something)
 				// R: Nothing to give
 				if d.mode != LightSync {
-					if !gotHeaders && td.Cmp(d.blockchain.GetTdByHash(d.blockchain.CurrentBlock().Hash())) > 0 {
+					if !gotHeaders && td.Cmp(d.blockchain.CurrentTD()) > 0 {
 						return errStallingPeer
 					}
 				}
