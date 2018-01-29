@@ -8,6 +8,7 @@ package leveldb
 
 import (
 	"time"
+	"fmt"
 
 	"github.com/syndtr/goleveldb/leveldb/memdb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -83,6 +84,7 @@ func (db *DB) flush(n int) (mdb *memDB, mdbFree int, err error) {
 		switch {
 		case tLen >= slowdownTrigger && !delayed:
 			delayed = true
+			fmt.Printf("sleeping 1ms\n")
 			time.Sleep(time.Millisecond)
 		case mdbFree >= n:
 			return false
@@ -141,6 +143,7 @@ func (db *DB) unlockWrite(overflow bool, merged int, err error) {
 		// Release lock.
 		<-db.writeLockC
 	}
+
 }
 
 // ourBatch if defined should equal with batch.
@@ -214,6 +217,10 @@ func (db *DB) writeLocked(batch, ourBatch *Batch, merge, sync bool) error {
 
 	// Seq number.
 	seq := db.seq + 1
+
+	if ourBatch != nil {
+		defer db.batchPool.Put(ourBatch)
+	}
 
 	// Write journal.
 	if err := db.writeJournal(batches, seq, sync); err != nil {

@@ -34,6 +34,7 @@ const (
 	batchHeaderLen = 8 + 4
 	batchGrowRec   = 3000
 	batchBufioSize = 16
+	batchInitialSize = 5*1024
 )
 
 // BatchReplay wraps basic batch operations.
@@ -72,12 +73,22 @@ type Batch struct {
 	internalLen int
 }
 
+func (b *Batch) Initialize(size int){
+	b.data = make([]byte, 0, size)
+}
+
 func (b *Batch) grow(n int) {
 	o := len(b.data)
 	if cap(b.data)-o < n {
 		div := 1
 		if len(b.index) > batchGrowRec {
 			div = len(b.index) / batchGrowRec
+		}
+		if o > 0{
+			fmt.Printf("leveldb grow, releaseing %d, n=%d, allocating %d\n",o,n,(o+n+o/div))
+//			if n == 96{
+//				panic("foo")
+//			}
 		}
 		ndata := make([]byte, o, o+n+o/div)
 		copy(ndata, b.data)
@@ -109,6 +120,13 @@ func (b *Batch) appendRec(kt keyType, key, value []byte) {
 	b.data = data[:o]
 	b.index = append(b.index, index)
 	b.internalLen += index.keyLen + index.valueLen + 8
+}
+
+func (b *Batch) WouldFitAlloc(key, value []byte) bool{
+	n := 1 + binary.MaxVarintLen32 + len(key)
+	n += binary.MaxVarintLen32 + len(value)
+	o := len(b.data)
+	return cap(b.data)-o >= n
 }
 
 // Put appends 'put operation' of the given key/value pair to the batch.
@@ -157,6 +175,10 @@ func (b *Batch) Replay(r BatchReplay) error {
 // Len returns number of records in the batch.
 func (b *Batch) Len() int {
 	return len(b.index)
+}
+
+func (b *Batch) Sizes() (allocated, used int){
+	return len(b.data), cap(b.data)
 }
 
 // Reset resets the batch.
@@ -212,16 +234,6 @@ func (b *Batch) decode(data []byte, expectedLen int) error {
 	return nil
 }
 
-func (b *Batch) putMem(seq uint64, mdb *memdb.DB) error {
-	var ik []byte
-	for i, index := range b.index {
-		ik = makeInternalKey(ik, index.k(b.data), seq+uint64(i), index.keyType)
-		if err := mdb.Put(ik, index.v(b.data)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func (b *Batch) revertMem(seq uint64, mdb *memdb.DB) error {
 	var ik []byte
@@ -235,7 +247,9 @@ func (b *Batch) revertMem(seq uint64, mdb *memdb.DB) error {
 }
 
 func newBatch() interface{} {
-	return &Batch{}
+	b := &Batch{}
+	b.data = make([]byte, 0, batchInitialSize)
+	return b
 }
 
 func decodeBatch(data []byte, fn func(i int, index batchIndex) error) error {
@@ -274,6 +288,17 @@ func decodeBatch(data []byte, fn func(i int, index batchIndex) error) error {
 		}
 
 		if err := fn(i, index); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Batch) putMem(seq uint64, mdb *memdb.DB) error {
+	var ik []byte
+	for i, index := range b.index {
+		ik = makeInternalKey(ik, index.k(b.data), seq+uint64(i), index.keyType)
+		if err := mdb.Put(ik, index.v(b.data)); err != nil {
 			return err
 		}
 	}

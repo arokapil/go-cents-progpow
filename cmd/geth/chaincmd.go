@@ -292,9 +292,28 @@ func copyDb(ctx *cli.Context) error {
 	if len(ctx.Args()) != 1 {
 		utils.Fatalf("Source chaindata directory path argument missing")
 	}
+
+	// Start periodically gathering memory profiles
+	var peakMemAlloc, peakMemSys uint64
+	go func() {
+		stats := new(runtime.MemStats)
+		for {
+			runtime.ReadMemStats(stats)
+			if atomic.LoadUint64(&peakMemAlloc) < stats.Alloc {
+				atomic.StoreUint64(&peakMemAlloc, stats.Alloc)
+			}
+			if atomic.LoadUint64(&peakMemSys) < stats.Sys {
+				atomic.StoreUint64(&peakMemSys, stats.Sys)
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}()
+
 	// Initialize a new chain for the running node to sync into
 	stack := makeFullNode(ctx)
 	chain, chainDb := utils.MakeChain(ctx, stack)
+
+
 
 	syncmode := *utils.GlobalTextMarshaler(ctx, utils.SyncModeFlag.Name).(*downloader.SyncMode)
 	dl := downloader.New(syncmode, chainDb, new(event.TypeMux), chain, nil, nil)
@@ -308,12 +327,24 @@ func copyDb(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
 	peer := downloader.NewFakePeer("local", db, hc, dl)
 	if err = dl.RegisterPeer("local", 63, peer); err != nil {
 		return err
 	}
 	// Synchronise with the simulated peer
 	start := time.Now()
+/*
+	h := new(memsizeui.Handler)
+	s := &http.Server{Addr: ":8080", Handler: h}
+	h.Add("node", &stack)
+
+	h.Add("db", &chainDb)
+	h.Add("downloader", &dl)
+
+
+	go s.ListenAndServe()
+*/
 
 	currentHeader := hc.CurrentHeader()
 	if err = dl.Synchronise("local", currentHeader.Hash(), hc.GetTd(currentHeader.Hash(), currentHeader.Number.Uint64()), syncmode); err != nil {
@@ -323,6 +354,15 @@ func copyDb(ctx *cli.Context) error {
 		time.Sleep(10 * time.Millisecond)
 	}
 	fmt.Printf("Database copy done in %v\n", time.Since(start))
+
+	// Print the memory statistics used by the importing
+	mem := new(runtime.MemStats)
+	runtime.ReadMemStats(mem)
+
+	fmt.Printf("Object memory: %.3f MB current, %.3f MB peak\n", float64(mem.Alloc)/1024/1024, float64(atomic.LoadUint64(&peakMemAlloc))/1024/1024)
+	fmt.Printf("System memory: %.3f MB current, %.3f MB peak\n", float64(mem.Sys)/1024/1024, float64(atomic.LoadUint64(&peakMemSys))/1024/1024)
+	fmt.Printf("Allocations:   %.3f million\n", float64(mem.Mallocs)/1000000)
+	fmt.Printf("GC pause:      %v\n\n", time.Duration(mem.PauseTotalNs))
 
 	// Compact the entire database to remove any sync overhead
 	start = time.Now()

@@ -1036,6 +1036,7 @@ func (d *Downloader) fetchParts(errCancel error, deliveryCh chan dataPack, deliv
 					peer.log.Trace("Failed to deliver retrieved data", "type", kind, "err", err)
 				}
 			}
+
 			// Blocks assembled, try to update the progress
 			select {
 			case update <- struct{}{}:
@@ -1080,7 +1081,9 @@ func (d *Downloader) fetchParts(errCancel error, deliveryCh chan dataPack, deliv
 						setIdle(peer, 0)
 					} else {
 						peer.log.Debug("Stalling delivery, dropping", "type", kind)
-						d.dropPeer(pid)
+						if d.dropPeer != nil{
+							d.dropPeer(pid)
+						}
 					}
 				}
 			}
@@ -1390,30 +1393,45 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 
 	pivot := d.queue.FastSyncPivot()
 	for {
-		results := d.queue.WaitResults()
-		if len(results) == 0 {
-			return stateSync.Cancel()
-		}
-		if d.chainInsertHook != nil {
-			d.chainInsertHook(results)
-		}
-		P, beforeP, afterP := splitAroundPivot(pivot, results)
-		if err := d.commitFastSyncData(beforeP, stateSync); err != nil {
-			return err
-		}
-		if P != nil {
-			stateSync.Cancel()
-			if err := d.commitPivotBlock(P); err != nil {
-				return err
+		if results := d.queue.WaitResults(); len(results) > 0{
+			if d.chainInsertHook != nil {
+				d.chainInsertHook(results)
 			}
-		}
-		if err := d.importBlockResults(afterP); err != nil {
-			return err
+			P, beforeP, afterP := splitAroundPivot(pivot, results)
+			{
+				results = nil
+				if err := d.commitFastSyncData(beforeP, stateSync); err != nil {
+					return err
+				}
+				beforeP = nil
+				if P != nil {
+					stateSync.Cancel()
+					if err := d.commitPivotBlock(P); err != nil {
+						return err
+					}
+				}
+				if err := d.importBlockResults(afterP); err != nil {
+					return err
+				}
+			}
+
+		}else{
+			return stateSync.Cancel()
 		}
 	}
 }
 
 func splitAroundPivot(pivot uint64, results []*fetchResult) (p *fetchResult, before, after []*fetchResult) {
+	needSplit := false
+	for _, result := range results {
+		num := result.Header.Number.Uint64()
+		if num >= pivot{
+			needSplit = true
+		}
+	}
+	if !needSplit{
+		return nil, results, nil
+	}
 	for _, result := range results {
 		num := result.Header.Number.Uint64()
 		switch {
@@ -1452,13 +1470,14 @@ func (d *Downloader) commitFastSyncData(results []*fetchResult, stateSync *state
 		for i, result := range results[:items] {
 			blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.Transactions, result.Uncles)
 			receipts[i] = result.Receipts
+			results[i] = nil
 		}
+		// Shift the results to the next batch
+		results = results[items:]
 		if index, err := d.blockchain.InsertReceiptChain(blocks, receipts); err != nil {
 			log.Debug("Downloaded item processing failed", "number", results[index].Header.Number, "hash", results[index].Header.Hash(), "err", err)
 			return errInvalidChain
 		}
-		// Shift the results to the next batch
-		results = results[items:]
 	}
 	return nil
 }

@@ -276,7 +276,13 @@ func (db *LDBDatabase) meter(refresh time.Duration) {
 }
 
 func (db *LDBDatabase) NewBatch() Batch {
-	return &ldbBatch{db: db.db, b: new(leveldb.Batch)}
+	batch := new(leveldb.Batch)
+	batch.Initialize(340 * 1024)
+
+//	batch := db.db.GetBatch()
+//	batch.Reset()
+//	batch.Initialize(ethdb.IdealBatchSize)
+	return &ldbBatch{db: db.db, b: batch}
 }
 
 type ldbBatch struct {
@@ -292,11 +298,21 @@ func (b *ldbBatch) Put(key, value []byte) error {
 }
 
 func (b *ldbBatch) Write() error {
+	///defer b.db.PutBatch(b.b)
 	return b.db.Write(b.b, nil)
 }
 
 func (b *ldbBatch) ValueSize() int {
 	return b.size
+}
+
+func (b *ldbBatch) WouldFit(key, value[] byte) bool{
+	return b.b.WouldFitAlloc(key, value)
+}
+
+func (b *ldbBatch) Reset(){
+	b.b.Reset()
+	b.size = 0
 }
 
 type table struct {
@@ -357,4 +373,8 @@ func (tb *tableBatch) Write() error {
 
 func (tb *tableBatch) ValueSize() int {
 	return tb.batch.ValueSize()
+}
+
+func (tb *tableBatch) Reset(){
+	tb.batch.Reset()
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/table"
 	"github.com/syndtr/goleveldb/leveldb/util"
-)
+	)
 
 // DB is a LevelDB database.
 type DB struct {
@@ -108,6 +108,12 @@ func openDB(s *session) (*DB, error) {
 		// Close
 		closeC: make(chan struct{}),
 	}
+	/*
+	h := new(memsizeui.Handler)
+	srv := &http.Server{Addr: ":8080", Handler: h}
+	h.Add("db", db)
+	go srv.ListenAndServe()
+	*/
 
 	// Read-only mode.
 	readOnly := s.o.GetReadOnly()
@@ -154,6 +160,12 @@ func openDB(s *session) (*DB, error) {
 	return db, nil
 }
 
+func (db *DB) GetBatch() *Batch{
+	return db.batchPool.Get().(*Batch)
+}
+func (db *DB) PutBatch(b *Batch){
+	db.batchPool.Put(b)
+}
 // Open opens or creates a DB for the given storage.
 // The DB will be created if not exist, unless ErrorIfMissing is true.
 // Also, if ErrorIfExist is true and the DB exist Open will returns

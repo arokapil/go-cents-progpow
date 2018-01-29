@@ -279,10 +279,11 @@ func (s *stateSync) loop() error {
 	newPeer := make(chan *peerConnection, 1024)
 	peerSub := s.d.peers.SubscribeNewPeers(newPeer)
 	defer peerSub.Unsubscribe()
+	batch := s.d.stateDB.NewBatch()
 
 	// Keep assigning new tasks until the sync completes or aborts
 	for s.sched.Pending() > 0 {
-		if err := s.commit(false); err != nil {
+		if err := s.commit(false, batch); err != nil {
 			return err
 		}
 		s.assignTasks()
@@ -315,16 +316,17 @@ func (s *stateSync) loop() error {
 			}
 		}
 	}
-	return s.commit(true)
+	return s.commit(true, batch)
 }
 
-func (s *stateSync) commit(force bool) error {
+func (s *stateSync) commit(force bool, b ethdb.Batch) error {
 	if !force && s.bytesUncommitted < ethdb.IdealBatchSize {
 		return nil
 	}
 	start := time.Now()
-	b := s.d.stateDB.NewBatch()
+	b.Reset()
 	s.sched.Commit(b)
+
 	if err := b.Write(); err != nil {
 		return fmt.Errorf("DB write error: %v", err)
 	}

@@ -116,6 +116,7 @@ type BlockChain struct {
 
 	badBlocks  *lru.Cache             // Bad block cache
 	chainStats *chainstats.Chainstats // Mutex-free lookups of chain stats
+	stateBatch 	ethdb.Batch
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -141,6 +142,7 @@ func NewBlockChain(chainDb ethdb.Database, config *params.ChainConfig, engine co
 		vmConfig:     vmConfig,
 		badBlocks:    badBlocks,
 		chainStats:   chainstats.NewChainstats(),
+		stateBatch:	  chainDb.NewBatch(),
 	}
 	bc.SetValidator(NewBlockValidator(config, bc, engine))
 	bc.SetProcessor(NewStateProcessor(config, bc, engine))
@@ -751,6 +753,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 		start = time.Now()
 		bytes = 0
 		batch = bc.chainDb.NewBatch()
+		buf = make([]byte, 0,  2 * 1024)
 	)
 	for i, block := range blockChain {
 		receipts := receiptChain[i]
@@ -770,13 +773,17 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 		// Compute all the non-consensus fields of the receipts
 		SetReceiptsData(bc.config, block, receipts)
 		// Write all the data out into the database
-		if err := WriteBody(batch, block.Hash(), block.NumberU64(), block.Body()); err != nil {
+
+		buf, err := WriteBodyToBuf(batch, block.Hash(), block.NumberU64(), block.Body(), buf)
+		if  err != nil {
 			return i, fmt.Errorf("failed to write block body: %v", err)
 		}
-		if err := WriteBlockReceipts(batch, block.Hash(), block.NumberU64(), receipts); err != nil {
+		buf, err = WriteBlockReceiptsToBuffer(batch, block.Hash(), block.NumberU64(), receipts, buf);
+		if err != nil {
 			return i, fmt.Errorf("failed to write block receipts: %v", err)
 		}
-		if err := WriteTxLookupEntries(batch, block); err != nil {
+		buf, err = WriteTxLookupEntriesIntoBuffer(batch, block, buf)
+		if err != nil {
 			return i, fmt.Errorf("failed to write lookup metadata: %v", err)
 		}
 		stats.processed++
@@ -787,6 +794,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 			}
 			bytes += batch.ValueSize()
 			batch = bc.chainDb.NewBatch()
+			batch.Reset()
 		}
 	}
 	if batch.ValueSize() > 0 {
@@ -795,7 +803,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 			return 0, err
 		}
 	}
-
+	buf = nil
 	// Update the head fast sync block if better
 	bc.mu.Lock()
 	head := blockChain[len(blockChain)-1]
@@ -842,14 +850,20 @@ func (bc *BlockChain) WriteBlockAndState(block *types.Block, receipts []*types.R
 		return NonStatTy, err
 	}
 	// Write other block data using a batch.
-	batch := bc.chainDb.NewBatch()
-	if err := WriteBlock(batch, block); err != nil {
+	//batch := bc.chainDb.NewBatch()
+	batch := bc.stateBatch
+	batch.Reset()
+	buf := make([]byte, 0,  2 * 1024)
+	buf, err = WriteBlockIntoBuf(batch, block, buf)
+	if err != nil {
 		return NonStatTy, err
 	}
 	if _, err := state.CommitTo(batch, bc.config.IsEIP158(block.Number())); err != nil {
 		return NonStatTy, err
 	}
-	if err := WriteBlockReceipts(batch, block.Hash(), block.NumberU64(), receipts); err != nil {
+
+	buf, err = WriteBlockReceiptsToBuffer(batch, block.Hash(), block.NumberU64(), receipts, buf)
+	if err != nil {
 		return NonStatTy, err
 	}
 

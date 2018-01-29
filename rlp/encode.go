@@ -104,6 +104,16 @@ func EncodeToBytes(val interface{}) ([]byte, error) {
 	return eb.toBytes(), nil
 }
 
+func EncodeToBytesIntoBuffer(val interface{}, buf []byte) ([]byte, error){
+	eb := encbufPool.Get().(*encbuf)
+	defer encbufPool.Put(eb)
+	eb.reset()
+	if err := eb.encode(val); err != nil {
+		return nil, err
+	}
+	return eb.toByteBuffer(buf), nil
+}
+
 // EncodeReader returns a reader from which the RLP encoding of val
 // can be read. The returned size is the total size of the encoded
 // data.
@@ -230,6 +240,29 @@ func (w *encbuf) size() int {
 
 func (w *encbuf) toBytes() []byte {
 	out := make([]byte, w.size())
+	strpos := 0
+	pos := 0
+	for _, head := range w.lheads {
+		// write string data before header
+		n := copy(out[pos:], w.str[strpos:head.offset])
+		pos += n
+		strpos += n
+		// write the header
+		enc := head.encode(out[pos:])
+		pos += len(enc)
+	}
+	// copy string data after the last list header
+	copy(out[pos:], w.str[strpos:])
+	return out
+}
+
+func (w *encbuf) toByteBuffer(buf []byte) []byte {
+	var out []byte
+	if cap(buf) < w.size(){
+		out = make([]byte, w.size())
+	}else{
+		out = buf[:w.size()]
+	}
 	strpos := 0
 	pos := 0
 	for _, head := range w.lheads {

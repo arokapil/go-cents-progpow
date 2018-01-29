@@ -373,7 +373,24 @@ func WriteHeadFastBlockHash(db ethdb.Putter, hash common.Hash) error {
 	}
 	return nil
 }
-
+func WriteHeaderToBuf(db ethdb.Putter, header *types.Header, buf []byte) ([]byte, error ){
+	data, err := rlp.EncodeToBytesIntoBuffer(header, buf)
+	if err != nil {
+		return nil, 	err
+	}
+	hash := header.Hash().Bytes()
+	num := header.Number.Uint64()
+	encNum := encodeBlockNumber(num)
+	key := append(blockHashPrefix, hash...)
+	if err := db.Put(key, encNum); err != nil {
+		log.Crit("Failed to store hash to number mapping", "err", err)
+	}
+	key = append(append(headerPrefix, encNum...), hash...)
+	if err := db.Put(key, data); err != nil {
+		log.Crit("Failed to store header", "err", err)
+	}
+	return buf, nil
+}
 // WriteHeader serializes a block header into the database.
 func WriteHeader(db ethdb.Putter, header *types.Header) error {
 	data, err := rlp.EncodeToBytes(header)
@@ -392,6 +409,21 @@ func WriteHeader(db ethdb.Putter, header *types.Header) error {
 		log.Crit("Failed to store header", "err", err)
 	}
 	return nil
+}
+
+// WriteBody serializes the body of a block into the database.
+func WriteBodyToBuf(db ethdb.Putter, hash common.Hash, number uint64, body *types.Body, buf []byte) ([]byte, error){
+	data, err := rlp.EncodeToBytesIntoBuffer(body, buf)
+	if err != nil {
+		return nil, err
+	}
+
+	key := append(append(bodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+	if err := db.Put(key, data); err != nil {
+		log.Crit("Failed to store block body", "err", err)
+	}
+
+	return data, nil
 }
 
 // WriteBody serializes the body of a block into the database.
@@ -436,6 +468,62 @@ func WriteBlock(db ethdb.Putter, block *types.Block) error {
 		return err
 	}
 	return nil
+}
+// WriteBlock serializes a block into the database, header and body separately.
+func WriteBlockIntoBuf(db ethdb.Putter, block *types.Block, buf []byte )([] byte, error ){
+	// Store the body first to retain database consistency
+	buf, err  := WriteBodyToBuf(db, block.Hash(), block.NumberU64(), block.Body(), buf)
+	if err != nil {
+		return nil, err
+	}
+	// Store the header too, signaling full block ownership
+	buf, err = WriteHeaderToBuf(db, block.Header(), buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf, nil
+}
+
+// WriteBlockReceipts stores all the transaction receipts belonging to a block
+// as a single receipt slice. This is used during chain reorganisations for
+// rescheduling dropped transactions.
+func WriteBlockReceiptsToBuffer(db ethdb.Putter, hash common.Hash, number uint64, receipts types.Receipts, buf []byte) ([]byte, error) {
+	// Convert the receipts into their storage form and serialize them
+	storageReceipts := make([]*types.ReceiptForStorage, len(receipts))
+	for i, receipt := range receipts {
+		storageReceipts[i] = (*types.ReceiptForStorage)(receipt)
+	}
+	bytes, err := rlp.EncodeToBytesIntoBuffer(storageReceipts, buf)
+	if err != nil {
+		return nil, err
+	}
+	// Store the flattened receipt slice
+	key := append(append(blockReceiptsPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+	if err := db.Put(key, bytes); err != nil {
+		log.Crit("Failed to store block receipts", "err", err)
+	}
+	return bytes, nil
+}
+
+// WriteTxLookupEntries stores a positional metadata for every transaction from
+// a block, enabling hash based transaction and receipt lookups.
+func WriteTxLookupEntriesIntoBuffer(db ethdb.Putter, block *types.Block, buf [] byte) ([] byte, error ){
+	// Iterate over each transaction and encode its metadata
+	for i, tx := range block.Transactions() {
+		entry := TxLookupEntry{
+			BlockHash:  block.Hash(),
+			BlockIndex: block.NumberU64(),
+			Index:      uint64(i),
+		}
+		buf, err := rlp.EncodeToBytesIntoBuffer(entry, buf)
+		if err != nil {
+			return nil, err
+		}
+		if err := db.Put(append(lookupPrefix, tx.Hash().Bytes()...), buf); err != nil {
+			return nil, err
+		}
+	}
+	return buf, nil
 }
 
 // WriteBlockReceipts stores all the transaction receipts belonging to a block
