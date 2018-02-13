@@ -309,15 +309,18 @@ func (z *Fixed256bit) isBitSet(n uint) bool{
 // If d == 0, z is set to 0
 // Div implements Euclidean division (unlike Go); see DivMod for more details.
 func (z *Fixed256bit) Div(n, d *Fixed256bit) *Fixed256bit {
-	// Shortcut some cases
 	if d.IsZero() || d.Gt(n) {
 		return z.Clear()
 	}
 	if n.Eq(d) {
 		return z.SetOne()
 	}
+	// Shortcut some cases
+	if n.IsUint64(){
+		return z.SetUint64(n.d / d.d)
+	}
 	// At this point, we know
-	// x/y ; x > y > 0
+	// n/d ; n > d > 0
 
 	// The rest is a pretty un-optimized implementation of "Long division"
 	// from https://en.wikipedia.org/wiki/Division_algorithm.

@@ -103,10 +103,10 @@ func TestRandomDiv(t *testing.T) {
 		}
 		f1a, f2a := f1.Clone(), f2.Clone()
 		f1.Div(f1, f2)
-		if b2.BitLen() ==0{
+		if b2.BitLen() == 0 {
 			// zero
 			b = big.NewInt(0)
-		}else{
+		} else {
 			b.Div(b, b2)
 		}
 		if eq := checkEq(b, f1); !eq {
@@ -274,26 +274,25 @@ func TestFixed256bit_Mul(t *testing.T) {
 
 func TestFixed256bit_Div(t *testing.T) {
 
-
 	/*
-	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000C"))
-	b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000004"))
+		b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000C"))
+		b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000004"))
 
-	f1= 0000000000000000.0000000000000000.0000000000000000.0000015fa035e510
-	f2= 0000000000000000.0000000000000000.0000000000000000.00000000001d0209
-	[ / ]==
-	f = 0000000000000000.0000000000000000.0000000000000000.0000015fa035e510
-	bf= 0000000000000000.0000000000000000.0000000000000000.00000000000c1f28
+		f1= 0000000000000000.0000000000000000.0000000000000000.0000015fa035e510
+		f2= 0000000000000000.0000000000000000.0000000000000000.00000000001d0209
+		[ / ]==
+		f = 0000000000000000.0000000000000000.0000000000000000.0000015fa035e510
+		bf= 0000000000000000.0000000000000000.0000000000000000.00000000000c1f28
 
-	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000015fa035e510"))
-	b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("00000000000000000000000000000000000000000000000000000000001d0209"))
+		b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000015fa035e510"))
+		b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("00000000000000000000000000000000000000000000000000000000001d0209"))
 
 
-	f1= 12cbafcee8f60f9f.3fa308c90fde8d29.8772ffea667aa6bc.109d5c661e7929a5
-	f2= 00000c76f4afb041.407a8ea478d65024.f5c3dfe1db1a1bb1.0c5ea8bec314ccf9
-	[ / ]==
-	f = 0000000000000000.0000000000000000.0000000000000000.0000000000000000
-	bf= 0000000000000000.0000000000000000.0000000000000000.0000000000018206
+		f1= 12cbafcee8f60f9f.3fa308c90fde8d29.8772ffea667aa6bc.109d5c661e7929a5
+		f2= 00000c76f4afb041.407a8ea478d65024.f5c3dfe1db1a1bb1.0c5ea8bec314ccf9
+		[ / ]==
+		f = 0000000000000000.0000000000000000.0000000000000000.0000000000000000
+		bf= 0000000000000000.0000000000000000.0000000000000000.0000000000018206
 
 	*/
 	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("12cbafcee8f60f9f3fa308c90fde8d298772ffea667aa6bc109d5c661e7929a5"))
@@ -597,7 +596,31 @@ func Benchmark_ExpSmall_Bit(bench *testing.B) {
 		f_base.Copy(f_orig)
 	}
 }
-func Benchmark_Div_Big(bench *testing.B) {
+func Benchmark_DivSmall_Big(bench *testing.B) {
+	a := big.NewInt(0).SetBytes(common.Hex2Bytes("1fc2bad1e611"))
+	b := big.NewInt(0).SetBytes(common.Hex2Bytes("12bad1e611"))
+
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+		b1 := big.NewInt(0)
+		b1.Div(a, b)
+		U256(b1)
+	}
+}
+
+func Benchmark_DivSmall_Bit(bench *testing.B) {
+	a := big.NewInt(0).SetBytes(common.Hex2Bytes("1fc2bad1e611"))
+	b := big.NewInt(0).SetBytes(common.Hex2Bytes("12bad1e611"))
+	fa, _ := NewFixedFromBig(a)
+	fb, _ := NewFixedFromBig(b)
+
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+		f := NewFixed()
+		f.Div(fa, fb)
+	}
+}
+func Benchmark_DivLarge_Big(bench *testing.B) {
 	a := big.NewInt(0).SetBytes(common.Hex2Bytes("fe7fb0d1f59dfe9492ffbf73683fd1e870eec79504c60144cc7f5fc2bad1e611"))
 	b := big.NewInt(0).SetBytes(common.Hex2Bytes("ff3f9014f20db29ae04af2c2d265de17"))
 
@@ -607,11 +630,9 @@ func Benchmark_Div_Big(bench *testing.B) {
 		b1.Div(a, b)
 		U256(b1)
 	}
-	//	bench.StopTimer()
-	//	fmt.Printf("B1: %x\n", b1)
 }
 
-func Benchmark_Div_Bit(bench *testing.B) {
+func Benchmark_DivLarge_Bit(bench *testing.B) {
 	a := big.NewInt(0).SetBytes(common.Hex2Bytes("fe7fb0d1f59dfe9492ffbf73683fd1e870eec79504c60144cc7f5fc2bad1e611"))
 	b := big.NewInt(0).SetBytes(common.Hex2Bytes("ff3f9014f20db29ae04af2c2d265de17"))
 	fa, _ := NewFixedFromBig(a)
@@ -622,6 +643,4 @@ func Benchmark_Div_Bit(bench *testing.B) {
 		f := NewFixed()
 		f.Div(fa, fb)
 	}
-	//	bench.StopTimer()
-	//	fmt.Printf("F1: %v\n", f.Hex())
 }
