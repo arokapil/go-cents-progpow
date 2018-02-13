@@ -364,17 +364,45 @@ func (z *Fixed256bit) Not() *Fixed256bit {
 func (f *Fixed256bit) Gt(g *Fixed256bit) bool {
 	return (f.a > g.a) || (f.b > g.b) || (f.c > g.c) || (f.d > g.d)
 }
+// SetIfGt sets f to 1 if f > g
+func (f *Fixed256bit) SetIfGt(g *Fixed256bit) {
+	if (f.a > g.a) || (f.b > g.b) || (f.c > g.c) || (f.d > g.d){
+		f.SetOne()
+	}else{
+		f.Clear()
+	}
+}
 
 // Lt returns true if l < g
 func (f *Fixed256bit) Lt(g *Fixed256bit) bool {
 	return (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d)
 }
 
+// SetIfLt sets f to 1 if f < g
+func (f *Fixed256bit) SetIfLt(g *Fixed256bit) bool {
+	if (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d){
+		f.SetOne()
+	}else{
+		f.Clear()
+	}
+}
+func (f *Fixed256bit) SetUint64(a uint64) *Fixed256bit{
+	f.a, f.b, f.c, f.d = 0,0,0,a
+	return f
+}
+
 // Eq returns true if f == g
 func (f *Fixed256bit) Eq(g *Fixed256bit) bool {
 	return (f.a == g.a) && (f.b == g.b) && (f.c == g.c) && (f.d == g.d)
 }
-
+// Eq returns true if f == g
+func (f *Fixed256bit) SetIfEq(g *Fixed256bit) {
+	if (f.a == g.a) && (f.b == g.b) && (f.c == g.c) && (f.d == g.d){
+		f.SetOne()
+	}else{
+		f.Clear()
+	}
+}
 // Cmp compares x and y and returns:
 //
 //   -1 if x <  y
@@ -389,6 +417,11 @@ func (x *Fixed256bit) Cmp(y *Fixed256bit) (r int) {
 		return -1
 	}
 	return 0
+}
+
+// ltsmall can be used to check if x is smaller than n
+func (x *Fixed256bit) ltSmall(n uint64) bool {
+	return x.a == 0 && x.b == 0 && x.c == 0 && x.d < n
 }
 
 // IsUint64 reports whether x can be represented as a uint64.
@@ -412,6 +445,11 @@ func (z *Fixed256bit) Clear() *Fixed256bit {
 	return z
 }
 
+// SetOne sets z to 1
+func (z *Fixed256bit) SetOne() *Fixed256bit {
+	z.a, z.b, z.c, z.d = 0, 0, 0, 1
+	return z
+}
 // Lsh sets z = x << n and returns z.
 func (z *Fixed256bit) Lsh(x *Fixed256bit, n uint) *Fixed256bit {
 
@@ -524,6 +562,32 @@ func (z *Fixed256bit) Xor(x, y *Fixed256bit) *Fixed256bit {
 	z.c = x.c ^ y.c
 	z.d = x.d ^ y.d
 	return z
+}
+
+// Byte sets f to the value of the byte at position n,
+// Example: f = '5', n=31 => 5
+func (f *Fixed256bit) Byte(n *Fixed256bit) *Fixed256bit {
+	var number uint64
+	if n.ltSmall(32) {
+		if n.d > 24 {
+			// f.d holds bytes [24 .. 31]
+			number = f.d
+		} else if n.d > 15 {
+			// f.c holds bytes [16 .. 23]
+			number = f.c
+		} else if n.d > 7 {
+			// f.b holds bytes [8 .. 15]
+			number = f.b
+		} else {
+			// f.a holds MSB, bytes [0 .. 7]
+			number = f.a
+		}
+		offset := 8*(n.d % 8)
+		number = (number & (0xff00000000000000 >> offset)) >> (56 - offset)
+	}
+
+	f.a,f.b, f.c, f.d = 0,0,0, number
+	return f
 }
 
 func (f *Fixed256bit) Hex() string {
