@@ -262,38 +262,86 @@ func (z *Fixed256bit) Mul(x, y *Fixed256bit) {
 	z.Add(alfa, beta)
 
 }
+func (z *Fixed256bit) setBit(n uint){
+	// n == 0 -> LSB
+	// n == 256 -> MSB
+	var w *uint64
+	if n < 64{
+		w = &z.d
+	}else if n < 128{
+		w = &z.c
+	}else if n < 192{
+		w = &z.b
+	}else if n < 256{
+		w = &z.a
+	}else{
+		return
+	}
 
-/*
-// Div sets z to the quotient x/y for y != 0 and returns z.
-// If y == 0, z is set to 0
+	//n %= 64
+	n &= 0x3f
+	//	mask := 0x1 << n
+	*w |= (1 << n)
+
+}
+func (z *Fixed256bit) isBitSet(n uint) bool{
+	// n == 0 -> LSB
+	// n == 256 -> MSB
+	var w uint64
+	if n < 64{
+		w = z.d
+	}else if n < 128{
+		w = z.c
+	}else if n < 192{
+		w = z.b
+	}else if n < 256{
+		w = z.a
+	}else{
+		w = 0
+	}
+
+	//n %= 64
+	n &= 0x3f
+	//	mask := 0x1 << n
+	return w & (1 << n) != 0
+}
+// Div sets z to the quotient n/d for returns z.
+// If d == 0, z is set to 0
 // Div implements Euclidean division (unlike Go); see DivMod for more details.
-func (z *Fixed256bit) Div(x, y *Fixed256bit) *Fixed256bit {
+func (z *Fixed256bit) Div(n, d *Fixed256bit) *Fixed256bit {
 	// Shortcut some cases
-	if y.IsZero() || y.Gt(x) {
+	if d.IsZero() || d.Gt(n) {
 		return z.Clear()
 	}
-	if y.Eq(x) {
-		z.a, z.b, z.c, z.d = 0, 0, 0, 1
-		return z
+	if n.Eq(d) {
+		return z.SetOne()
 	}
 	// At this point, we know
 	// x/y ; x > y > 0
 
 	// The rest is a pretty un-optimized implementation of "Long division"
 	// from https://en.wikipedia.org/wiki/Division_algorithm.
-	// Could probably be improved upon
-	xbitlen := x.Bitlen()
+	// Could probably be improved upon (it's very slow now)
 
-	R := &Fixed256bit{}
-	Q := &Fixed256bit{}
-	N := x
-	D := y
-	for i:= xbitlen -1; i > 0 ; i--{
-		R.Rsh(1)
+	r := &Fixed256bit{}
+	q := &Fixed256bit{}
 
+	for i:= n.Bitlen() -1; i >= 0 ; i--{
+		// Left-shift r by 1 bit
+		r.lshOne()
+		// Set the least-significant bit of r equal to bit i of the numerator
+		if ni := n.isBitSet(uint(i)); ni{
+			r.d |= 1
+		}
+		if ! r.Lt(d) {
+			r.Sub(r,d)
+			q.setBit(uint(i))
+		}
 	}
+	z.Copy(q)
+	return z
 }
-*/
+
 func (x *Fixed256bit) Bitlen() int {
 	switch {
 	case x.a != 0:
@@ -359,14 +407,34 @@ func (z *Fixed256bit) Not() *Fixed256bit {
 	z.a, z.b, z.c, z.d = ^z.a, ^z.b, ^z.c, ^z.d
 	return z
 }
-
 // Gt returns true if f > g
 func (f *Fixed256bit) Gt(g *Fixed256bit) bool {
-	return (f.a > g.a) || (f.b > g.b) || (f.c > g.c) || (f.d > g.d)
+	if f.a > g.a {
+		return true
+	}
+	if f.a < g.a {
+		return false
+	}
+	if f.b > g.b {
+		return true
+	}
+	if f.b < g.b {
+		return false
+	}
+	if f.c > g.c {
+		return true
+	}
+	if f.c < g.c {
+		return false
+	}
+	if f.d > g.d {
+		return true
+	}
+	return false
 }
 // SetIfGt sets f to 1 if f > g
 func (f *Fixed256bit) SetIfGt(g *Fixed256bit) {
-	if (f.a > g.a) || (f.b > g.b) || (f.c > g.c) || (f.d > g.d){
+	if f.Gt(g){
 		f.SetOne()
 	}else{
 		f.Clear()
@@ -375,11 +443,32 @@ func (f *Fixed256bit) SetIfGt(g *Fixed256bit) {
 
 // Lt returns true if l < g
 func (f *Fixed256bit) Lt(g *Fixed256bit) bool {
-	return (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d)
+	if f.a < g.a {
+		return true
+	}
+	if f.a > g.a {
+		return false
+	}
+	if f.b < g.b {
+		return true
+	}
+	if f.b > g.b {
+		return false
+	}
+	if f.c < g.c {
+		return true
+	}
+	if f.c > g.c {
+		return false
+	}
+	if f.d < g.d {
+		return true
+	}
+	return false
 }
 
 // SetIfLt sets f to 1 if f < g
-func (f *Fixed256bit) SetIfLt(g *Fixed256bit) bool {
+func (f *Fixed256bit) SetIfLt(g *Fixed256bit) {
 	if (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d){
 		f.SetOne()
 	}else{
@@ -450,6 +539,25 @@ func (z *Fixed256bit) SetOne() *Fixed256bit {
 	z.a, z.b, z.c, z.d = 0, 0, 0, 1
 	return z
 }
+
+// Lsh shifts z by n bits. OBS! Only to be used by with n < 64
+func (z *Fixed256bit) lshOne(){
+	var (
+		a, b uint64
+	)
+	a = z.d >> 63
+	z.d = z.d << 1
+
+	b = z.c >> 63
+	z.c = (z.c << 1) | a
+
+	a = z.b >> 63
+	z.b = (z.b << 1) | b
+
+	b = z.a >> 63
+	z.a = (z.a << 1) | a
+}
+
 // Lsh sets z = x << n and returns z.
 func (z *Fixed256bit) Lsh(x *Fixed256bit, n uint) *Fixed256bit {
 
@@ -582,7 +690,7 @@ func (f *Fixed256bit) Byte(n *Fixed256bit) *Fixed256bit {
 			// f.a holds MSB, bytes [0 .. 7]
 			number = f.a
 		}
-		offset := 8*(n.d % 8)
+		offset := (n.d & 0x7) << 3 // 8*(n.d % 8)
 		number = (number & (0xff00000000000000 >> offset)) >> (56 - offset)
 	}
 

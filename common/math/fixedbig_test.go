@@ -91,6 +91,30 @@ func TestRandomMul(t *testing.T) {
 		}
 	}
 }
+func TestRandomDiv(t *testing.T) {
+	for i := 0; i < 10000; i++ {
+		b, f1, err := randNums()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b2, f2, err := randNums()
+		if err != nil {
+			t.Fatal(err)
+		}
+		f1a, f2a := f1.Clone(), f2.Clone()
+		f1.Div(f1, f2)
+		if b2.BitLen() ==0{
+			// zero
+			b = big.NewInt(0)
+		}else{
+			b.Div(b, b2)
+		}
+		if eq := checkEq(b, f1); !eq {
+			bf, _ := NewFixedFromBig(b)
+			t.Fatalf("Expected equality:\nf1= %v\nf2= %v\n[ / ]==\nf = %v\nbf= %v\nb = %x\n", f1a.Hex(), f2a.Hex(), f1.Hex(), bf.Hex(), b)
+		}
+	}
+}
 
 func TestRandomLsh(t *testing.T) {
 	for i := 0; i < 10000; i++ {
@@ -247,6 +271,52 @@ func TestFixed256bit_Mul(t *testing.T) {
 	fmt.Printf("b->f: %s\n", res.Hex())
 	fmt.Printf("EQ  : %v\n", f.Eq(res))
 }
+
+func TestFixed256bit_Div(t *testing.T) {
+
+
+	/*
+	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000C"))
+	b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000004"))
+
+	f1= 0000000000000000.0000000000000000.0000000000000000.0000015fa035e510
+	f2= 0000000000000000.0000000000000000.0000000000000000.00000000001d0209
+	[ / ]==
+	f = 0000000000000000.0000000000000000.0000000000000000.0000015fa035e510
+	bf= 0000000000000000.0000000000000000.0000000000000000.00000000000c1f28
+
+	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000015fa035e510"))
+	b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("00000000000000000000000000000000000000000000000000000000001d0209"))
+
+
+	f1= 12cbafcee8f60f9f.3fa308c90fde8d29.8772ffea667aa6bc.109d5c661e7929a5
+	f2= 00000c76f4afb041.407a8ea478d65024.f5c3dfe1db1a1bb1.0c5ea8bec314ccf9
+	[ / ]==
+	f = 0000000000000000.0000000000000000.0000000000000000.0000000000000000
+	bf= 0000000000000000.0000000000000000.0000000000000000.0000000000018206
+
+	*/
+	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("12cbafcee8f60f9f3fa308c90fde8d298772ffea667aa6bc109d5c661e7929a5"))
+	b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("00000c76f4afb041407a8ea478d65024f5c3dfe1db1a1bb10c5ea8bec314ccf9"))
+
+	f, _ := NewFixedFromBig(b1)
+	f2, _ := NewFixedFromBig(b2)
+
+	fmt.Printf("B1   : %x\n", b1)
+	fmt.Printf("B2   : %x\n", b2)
+	fmt.Printf("F1   : %s\n", f.Hex())
+	fmt.Printf("F2   : %s\n", f2.Hex())
+	fmt.Println("--")
+	b1.Div(b1, b2)
+	f.Div(f, f2)
+	fmt.Printf("B   : %x\n", b1)
+	fmt.Printf("F   : %s\n", f.Hex())
+
+	res, _ := NewFixedFromBig(b1)
+	fmt.Printf("b->f: %s\n", res.Hex())
+	fmt.Printf("EQ  : %v\n", f.Eq(res))
+}
+
 func TestFixedExp(t *testing.T) {
 
 	b_base := big.NewInt(0).SetBytes(common.Hex2Bytes("00000000000000000000000000000000000000000000006d5adef08547abf7eb"))
@@ -526,4 +596,32 @@ func Benchmark_ExpSmall_Bit(bench *testing.B) {
 		ExpF(f_base, f_exp)
 		f_base.Copy(f_orig)
 	}
+}
+func Benchmark_Div_Big(bench *testing.B) {
+	a := big.NewInt(0).SetBytes(common.Hex2Bytes("fe7fb0d1f59dfe9492ffbf73683fd1e870eec79504c60144cc7f5fc2bad1e611"))
+	b := big.NewInt(0).SetBytes(common.Hex2Bytes("ff3f9014f20db29ae04af2c2d265de17"))
+
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+		b1 := big.NewInt(0)
+		b1.Div(a, b)
+		U256(b1)
+	}
+	//	bench.StopTimer()
+	//	fmt.Printf("B1: %x\n", b1)
+}
+
+func Benchmark_Div_Bit(bench *testing.B) {
+	a := big.NewInt(0).SetBytes(common.Hex2Bytes("fe7fb0d1f59dfe9492ffbf73683fd1e870eec79504c60144cc7f5fc2bad1e611"))
+	b := big.NewInt(0).SetBytes(common.Hex2Bytes("ff3f9014f20db29ae04af2c2d265de17"))
+	fa, _ := NewFixedFromBig(a)
+	fb, _ := NewFixedFromBig(b)
+
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+		f := NewFixed()
+		f.Div(fa, fb)
+	}
+	//	bench.StopTimer()
+	//	fmt.Printf("F1: %v\n", f.Hex())
 }
