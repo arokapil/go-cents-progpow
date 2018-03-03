@@ -582,8 +582,8 @@ func (f *Fixed256bit) Lt(g *Fixed256bit) bool {
 
 // SetIfLt sets f to 1 if f < g
 func (f *Fixed256bit) SetIfLt(g *Fixed256bit) {
-	if (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d) {
-		f.SetOne()
+	if f.Lt(g){
+\		f.SetOne()
 	} else {
 		f.Clear()
 	}
@@ -655,7 +655,7 @@ func (z *Fixed256bit) SetOne() *Fixed256bit {
 	return z
 }
 
-// Lsh shifts z by n bits. OBS! Only to be used by with n < 64
+// Lsh shifts z by 1 bit.
 func (z *Fixed256bit) lshOne() {
 	var (
 		a, b uint64
