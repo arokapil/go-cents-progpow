@@ -165,8 +165,56 @@ func (z *Fixed256bit) Add(x, y *Fixed256bit) {
 
 }
 
-// Sub sets z to the difference x-y and returns z.
-func (z *Fixed256bit) Sub(x, y *Fixed256bit) bool {
+// Sub sets z to the difference x-y
+func (z *Fixed256bit) Sub(x, y *Fixed256bit) {
+
+	var (
+		underflow uint64
+		q         uint64
+	)
+
+	q = x.d - y.d
+	if q > x.d {
+		underflow = 1
+	}
+	z.d = q
+
+	q = x.c - y.c
+	if q > x.c { // underflow again
+		q -= underflow
+		underflow = 1
+	} else {
+		// No underflow, we can decrement it
+		q -= underflow
+		// May cause another underflow
+		if q > x.c {
+			underflow = 1
+		} else {
+			underflow = 0
+		}
+	}
+	z.c = q
+
+	q = x.b - y.b
+	if q > x.b { // underflow again
+		q -= underflow
+		underflow = 1
+	} else {
+		// No underflow, we can decrement it
+		q -= underflow
+		// May cause another underflow
+		if q > x.b {
+			underflow = 1
+		} else {
+			underflow = 0
+		}
+	}
+	z.b = q
+	z.a = x.a - y.a - underflow
+}
+
+// Sub sets z to the difference x-y and returns true if the operation underflowed
+func (z *Fixed256bit) SubOverflow(x, y *Fixed256bit) bool {
 
 	var (
 		underflow bool
@@ -174,7 +222,7 @@ func (z *Fixed256bit) Sub(x, y *Fixed256bit) bool {
 	)
 
 	q = x.d - y.d
-	underflow = (q > x.d) // underflow
+	underflow = (x.d < y.d)
 	z.d = q
 
 	q = x.c - y.c
@@ -187,7 +235,7 @@ func (z *Fixed256bit) Sub(x, y *Fixed256bit) bool {
 		// No underflow, we can decrement it
 		q--
 		// May cause another underflow
-		underflow = (q > x.c)
+		underflow = q > x.c
 	}
 	z.c = q
 
@@ -201,7 +249,7 @@ func (z *Fixed256bit) Sub(x, y *Fixed256bit) bool {
 		// No underflow, we can decrement it
 		q--
 		// May cause another underflow
-		underflow = (q > x.b)
+		underflow = q > x.b
 	}
 	z.b = q
 
@@ -215,8 +263,9 @@ func (z *Fixed256bit) Sub(x, y *Fixed256bit) bool {
 		// No underflow, we can decrement it
 		q--
 		// May cause another underflow
-		underflow = (q > x.a)
+		underflow = q > x.a
 	}
+
 	z.a = q
 	return underflow
 }
@@ -229,8 +278,8 @@ func (x *Fixed256bit) mul64(a, b uint64, y *Fixed256bit) *Fixed256bit {
 	if a == 0 || b == 0 {
 		return x.Clear()
 	}
-	low_a := a & 0x00000000ffffffff
-	low_b := b & 0x00000000ffffffff
+	low_a := a & bitmask32
+	low_b := b & bitmask32
 	high_a := a >> 32
 	high_b := b >> 32
 
@@ -241,13 +290,13 @@ func (x *Fixed256bit) mul64(a, b uint64, y *Fixed256bit) *Fixed256bit {
 
 	y.a, y.b = 0, 0
 	y.c = d2 >> 32
-	y.d = (d2 & 0x00000000ffffffff) << 32
+	y.d = (d2 & bitmask32) << 32
 
 	x.Add(x, y)
 
 	y.a, y.b = 0, 0
 	y.c = d3 >> 32
-	y.d = (d3 & 0x00000000ffffffff) << 32
+	y.d = (d3 & bitmask32) << 32
 
 	x.Add(x, y)
 	return x
