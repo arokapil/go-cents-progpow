@@ -64,9 +64,28 @@ func TestRandomAdd(t *testing.T) {
 			t.Fatal(err)
 		}
 		f1a, f2a := f1.Clone(), f2.Clone()
-		overflow := f1.Add(f1, f2)
+		f1.Add(f1, f2)
 		b.Add(b, b2)
-		checkOverflow(b, f1, overflow)
+		//checkOverflow(b, f1, overflow)
+		if eq := checkEq(b, f1); !eq {
+			t.Fatalf("Expected equality:\nf1= %v\nf2= %v\n[ + ]==\nf= %v\nb= %x\n", f1a.Hex(), f2a.Hex(), f1.Hex(), b)
+		}
+	}
+}
+func TestRandomAdd2(t *testing.T) {
+	for i := 0; i < 10000; i++ {
+		b, f1, err := randNums()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b2, f2, err := randNums()
+		if err != nil {
+			t.Fatal(err)
+		}
+		f1a, f2a := f1.Clone(), f2.Clone()
+		f1.Add2(f1, f2)
+		b.Add(b, b2)
+		//checkOverflow(b, f1, overflow)
 		if eq := checkEq(b, f1); !eq {
 			t.Fatalf("Expected equality:\nf1= %v\nf2= %v\n[ + ]==\nf= %v\nb= %x\n", f1a.Hex(), f2a.Hex(), f1.Hex(), b)
 		}
@@ -357,6 +376,20 @@ func Benchmark_Add_Bit(bench *testing.B) {
 		f.Add(f, f2)
 	}
 }
+
+
+func Benchmark_Add_Bit2(bench *testing.B) {
+	b1 := big.NewInt(0).SetBytes(common.Hex2Bytes("0123456789abcdeffedcba9876543210f2f3f4f5f6f7f8f9fff3f4f5f6f7f8f9"))
+	b2 := big.NewInt(0).SetBytes(common.Hex2Bytes("0123456789abcdefaaaaaa9876543210f2f3f4f5f6f7f8f9fff3f4f5f6f7f8f9"))
+	f, _ := NewFixedFromBig(b1)
+	f2, _ := NewFixedFromBig(b2)
+
+	bench.ResetTimer()
+	for i := 0; i < bench.N; i++ {
+		f.Add2(f, f2)
+	}
+}
+
 
 func Benchmark_Add_Big(bench *testing.B) {
 	b := big.NewInt(0).SetBytes(common.Hex2Bytes("0123456789abcdeffedcba9876543210f2f3f4f5f6f7f8f9fff3f4f5f6f7f8f9"))

@@ -62,49 +62,107 @@ func (z *Fixed256bit) Set(int *big.Int) bool {
 func (z *Fixed256bit) Clone() *Fixed256bit {
 	return &Fixed256bit{z.a, z.b, z.c, z.d}
 }
+
+const bitmask32 = 0x00000000ffffffff
+
 func add64(a uint64, b uint64, carry uint64) (uint64, uint64) {
 
 	var (
 		q, sum uint64
 	)
-	sum = carry + (a & 0x00000000ffffffff) + (b & 0x00000000ffffffff)
-	q = sum & 0x00000000ffffffff
+	sum = carry + (a & bitmask32) + (b & bitmask32)
+	q = sum & bitmask32
 	carry = sum >> 32
 	sum = carry + (a >> 32) + (b >> 32)
-	q |= (sum & 0x00000000ffffffff) << 32
+	q |= (sum & bitmask32) << 32
 	carry = sum >> 32
 	return q, carry
 }
 
-// Add sets z to the sum x+y and returns whether overflow occurred
-func (z *Fixed256bit) Add(x, y *Fixed256bit) bool {
+// Add2 sets z to the sum x+y
+func (z *Fixed256bit) Add2(x, y *Fixed256bit) {
 
 	var (
-		q, carry, sum uint64
+		carry, sum uint64
+		q          uint64
 	)
-	q = x.d + y.d
-	if y.d > 0 && x.d > 0 {
-		sum = carry + (y.d & 0x00000000ffffffff) + (x.d & 0x00000000ffffffff)
-		carry = (sum >> 32)
-		sum = carry + (y.d >> 32) + (x.d >> 32)
-		carry = (sum >> 32)
-	}
-	z.d = q
-	z.c, carry = add64(y.c, x.c, carry)
+	// Least significant
+	sum = (y.d & bitmask32) + (x.d & bitmask32)
+	carry = sum >> 32
+	sum = carry + (y.d >> 32) + (x.d >> 32)
+	carry = sum >> 32
+	z.d = x.d + y.d
 
-	if carry == 0 && y.b == 0 && y.a == 0 && x.b == 0 && x.a == 0 {
-		z.b = 0
-		z.a = 0
-		return false
-	}
-	z.b, carry = add64(y.b, x.b, carry)
+	//	z.c, carry = add64(y.c, x.c, carry)
+	// Written out as:
 
-	if carry == 0 && y.a == 0 && x.a == 0 {
-		z.a = 0
-		return false
+	sum = carry + (y.c & bitmask32) + (x.c & bitmask32)
+	q = sum & bitmask32
+	carry = sum >> 32
+	sum = carry + (y.c >> 32) + (x.c >> 32)
+	q |= (sum & bitmask32) << 32
+	carry = sum >> 32
+	z.c = q
+
+	//	z.b, carry = add64(y.b, x.b, carry)
+	sum = carry + (y.b & bitmask32) + (x.b & bitmask32)
+	q = sum & bitmask32
+	carry = sum >> 32
+	sum = carry + (y.b >> 32) + (x.b >> 32)
+	q |= (sum & bitmask32) << 32
+	carry = sum >> 32
+	z.b = q
+
+	z.a = x.a + y.a + carry
+}
+
+// Add sets z to the sum x+y
+func (z *Fixed256bit) Add(x, y *Fixed256bit) {
+
+	var (
+		sum   uint64
+		carry uint64
+	)
+	// LSB
+	sum = x.d + y.d
+	if sum < x.d {
+		carry = 1
 	}
-	z.a, carry = add64(y.a, x.a, carry)
-	return (carry != 0)
+	z.d = sum
+
+	// Next 64 bits
+	sum = x.c + y.c
+	if sum < x.c {
+		sum += carry
+		carry = 1
+	} else {
+		sum += carry
+		if sum < x.c {
+			carry = 1
+		} else {
+			carry = 0
+		}
+	}
+	z.c = sum
+	// Second to last group
+	sum = x.b + y.b
+
+	if sum < x.b {
+		sum += carry
+		carry = 1
+	} else {
+		sum += carry
+		if sum < x.b {
+			carry = 1
+		} else {
+			carry = 0
+		}
+	}
+	z.b = sum
+
+	// Last group
+	z.a = x.a + y.a + carry
+
 }
 
 // Sub sets z to the difference x-y and returns z.
@@ -262,19 +320,19 @@ func (z *Fixed256bit) Mul(x, y *Fixed256bit) {
 	z.Add(alfa, beta)
 
 }
-func (z *Fixed256bit) setBit(n uint){
+func (z *Fixed256bit) setBit(n uint) {
 	// n == 0 -> LSB
 	// n == 256 -> MSB
 	var w *uint64
-	if n < 64{
+	if n < 64 {
 		w = &z.d
-	}else if n < 128{
+	} else if n < 128 {
 		w = &z.c
-	}else if n < 192{
+	} else if n < 192 {
 		w = &z.b
-	}else if n < 256{
+	} else if n < 256 {
 		w = &z.a
-	}else{
+	} else {
 		return
 	}
 
@@ -284,27 +342,28 @@ func (z *Fixed256bit) setBit(n uint){
 	*w |= (1 << n)
 
 }
-func (z *Fixed256bit) isBitSet(n uint) bool{
+func (z *Fixed256bit) isBitSet(n uint) bool {
 	// n == 0 -> LSB
 	// n == 256 -> MSB
 	var w uint64
-	if n < 64{
+	if n < 64 {
 		w = z.d
-	}else if n < 128{
+	} else if n < 128 {
 		w = z.c
-	}else if n < 192{
+	} else if n < 192 {
 		w = z.b
-	}else if n < 256{
+	} else if n < 256 {
 		w = z.a
-	}else{
+	} else {
 		w = 0
 	}
 
 	//n %= 64
 	n &= 0x3f
 	//	mask := 0x1 << n
-	return w & (1 << n) != 0
+	return w&(1<<n) != 0
 }
+
 // Div sets z to the quotient n/d for returns z.
 // If d == 0, z is set to 0
 // Div implements Euclidean division (unlike Go); see DivMod for more details.
@@ -316,7 +375,7 @@ func (z *Fixed256bit) Div(n, d *Fixed256bit) *Fixed256bit {
 		return z.SetOne()
 	}
 	// Shortcut some cases
-	if n.IsUint64(){
+	if n.IsUint64() {
 		return z.SetUint64(n.d / d.d)
 	}
 	// At this point, we know
@@ -329,15 +388,15 @@ func (z *Fixed256bit) Div(n, d *Fixed256bit) *Fixed256bit {
 	r := &Fixed256bit{}
 	q := &Fixed256bit{}
 
-	for i:= n.Bitlen() -1; i >= 0 ; i--{
+	for i := n.Bitlen() - 1; i >= 0; i-- {
 		// Left-shift r by 1 bit
 		r.lshOne()
 		// Set the least-significant bit of r equal to bit i of the numerator
-		if ni := n.isBitSet(uint(i)); ni{
+		if ni := n.isBitSet(uint(i)); ni {
 			r.d |= 1
 		}
-		if ! r.Lt(d) {
-			r.Sub(r,d)
+		if !r.Lt(d) {
+			r.Sub(r, d)
 			q.setBit(uint(i))
 		}
 	}
@@ -410,6 +469,7 @@ func (z *Fixed256bit) Not() *Fixed256bit {
 	z.a, z.b, z.c, z.d = ^z.a, ^z.b, ^z.c, ^z.d
 	return z
 }
+
 // Gt returns true if f > g
 func (f *Fixed256bit) Gt(g *Fixed256bit) bool {
 	if f.a > g.a {
@@ -435,11 +495,12 @@ func (f *Fixed256bit) Gt(g *Fixed256bit) bool {
 	}
 	return false
 }
+
 // SetIfGt sets f to 1 if f > g
 func (f *Fixed256bit) SetIfGt(g *Fixed256bit) {
-	if f.Gt(g){
+	if f.Gt(g) {
 		f.SetOne()
-	}else{
+	} else {
 		f.Clear()
 	}
 }
@@ -472,14 +533,14 @@ func (f *Fixed256bit) Lt(g *Fixed256bit) bool {
 
 // SetIfLt sets f to 1 if f < g
 func (f *Fixed256bit) SetIfLt(g *Fixed256bit) {
-	if (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d){
+	if (f.a < g.a) || (f.b < g.b) || (f.c < g.c) || (f.d < g.d) {
 		f.SetOne()
-	}else{
+	} else {
 		f.Clear()
 	}
 }
-func (f *Fixed256bit) SetUint64(a uint64) *Fixed256bit{
-	f.a, f.b, f.c, f.d = 0,0,0,a
+func (f *Fixed256bit) SetUint64(a uint64) *Fixed256bit {
+	f.a, f.b, f.c, f.d = 0, 0, 0, a
 	return f
 }
 
@@ -487,14 +548,16 @@ func (f *Fixed256bit) SetUint64(a uint64) *Fixed256bit{
 func (f *Fixed256bit) Eq(g *Fixed256bit) bool {
 	return (f.a == g.a) && (f.b == g.b) && (f.c == g.c) && (f.d == g.d)
 }
+
 // Eq returns true if f == g
 func (f *Fixed256bit) SetIfEq(g *Fixed256bit) {
-	if (f.a == g.a) && (f.b == g.b) && (f.c == g.c) && (f.d == g.d){
+	if (f.a == g.a) && (f.b == g.b) && (f.c == g.c) && (f.d == g.d) {
 		f.SetOne()
-	}else{
+	} else {
 		f.Clear()
 	}
 }
+
 // Cmp compares x and y and returns:
 //
 //   -1 if x <  y
@@ -544,7 +607,7 @@ func (z *Fixed256bit) SetOne() *Fixed256bit {
 }
 
 // Lsh shifts z by n bits. OBS! Only to be used by with n < 64
-func (z *Fixed256bit) lshOne(){
+func (z *Fixed256bit) lshOne() {
 	var (
 		a, b uint64
 	)
@@ -697,7 +760,7 @@ func (f *Fixed256bit) Byte(n *Fixed256bit) *Fixed256bit {
 		number = (number & (0xff00000000000000 >> offset)) >> (56 - offset)
 	}
 
-	f.a,f.b, f.c, f.d = 0,0,0, number
+	f.a, f.b, f.c, f.d = 0, 0, 0, number
 	return f
 }
 
