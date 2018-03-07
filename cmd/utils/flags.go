@@ -168,6 +168,14 @@ var (
 		Name:  "iterative",
 		Usage: "Print streaming json iteratively as json objects, delimited by lines",
 	}
+	ExcludeStorageFlag = cli.BoolFlag{
+		Name:  "nostorage",
+		Usage: "When dumping state, do not include storage (saves db lookups)",
+	}
+	ExcludeCodeFlag = cli.BoolFlag{
+		Name:  "nocode",
+		Usage: "When dumping state, do not include code (saves db lookups)",
+	}
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
 		Name:  "syncmode",

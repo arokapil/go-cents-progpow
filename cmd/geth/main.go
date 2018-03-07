@@ -147,6 +147,8 @@ var (
 
 	dumpFlags = []cli.Flag{
 		utils.IterativeOutputFlag,
+		utils.ExcludeCodeFlag,
+		utils.ExcludeStorageFlag,
 	}
 )
 

@@ -200,7 +200,7 @@ func runCmd(ctx *cli.Context) error {
 
 	if ctx.GlobalBool(DumpFlag.Name) {
 		statedb.IntermediateRoot(true)
-		fmt.Println(string(statedb.Dump()))
+		fmt.Println(string(statedb.Dump(false, false)))
 	}
 
 	if memProfilePath := ctx.GlobalString(MemProfileFlag.Name); memProfilePath != "" {

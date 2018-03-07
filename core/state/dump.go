@@ -104,7 +104,7 @@ func (self *IterativeDump) onRoot(root common.Hash) {
 	})
 }
 
-func (self *StateDB) performDump(c collector) {
+func (self *StateDB) performDump(c collector, excludeCode, excludeStorage bool) {
 
 	c.onRoot(self.trie.Hash())
 
@@ -122,29 +122,33 @@ func (self *StateDB) performDump(c collector) {
 			Nonce:    data.Nonce,
 			Root:     common.Bytes2Hex(data.Root[:]),
 			CodeHash: common.Bytes2Hex(data.CodeHash),
-			Code:     common.Bytes2Hex(obj.Code(self.db)),
-			Storage:  make(map[string]string),
 		}
-		storageIt := trie.NewIterator(obj.getTrie(self.db).NodeIterator(nil))
-		for storageIt.Next() {
-			account.Storage[common.Bytes2Hex(self.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(storageIt.Value)
+		if !excludeCode {
+			account.Code = common.Bytes2Hex(obj.Code(self.db))
+		}
+		if !excludeStorage {
+			account.Storage = make(map[string]string)
+			storageIt := trie.NewIterator(obj.getTrie(self.db).NodeIterator(nil))
+			for storageIt.Next() {
+				account.Storage[common.Bytes2Hex(self.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(storageIt.Value)
+			}
 		}
 		c.onAccount(common.Bytes2Hex(addr), account)
 	}
 }
 
 // RawDump returns the entire state an a single large object
-func (self *StateDB) RawDump() Dump {
+func (self *StateDB) RawDump(excludeCode, excludeStorage bool) Dump {
 
 	dump := newCollectingDump()
-	self.performDump(dump)
+	self.performDump(dump, excludeCode, excludeStorage)
 	return *dump
 }
 
 // Dump returns a JSON string representing the entire state as a single json-object
-func (self *StateDB) Dump() []byte {
+func (self *StateDB) Dump(excludeCode, excludeStorage bool) []byte {
 	dump := newCollectingDump()
-	self.performDump(dump)
+	self.performDump(dump, excludeCode, excludeStorage)
 	json, err := json.MarshalIndent(dump, "", "    ")
 	if err != nil {
 		fmt.Println("dump err", err)
@@ -153,6 +157,6 @@ func (self *StateDB) Dump() []byte {
 }
 
 // IterativeDump dumps out accounts as json-objects, delimited by linebreaks on stdout
-func (self *StateDB) IterativeDump() {
-	self.performDump(newIterativeDump(os.Stdout))
+func (self *StateDB) IterativeDump(excludeCode, excludeStorage bool) {
+	self.performDump(newIterativeDump(os.Stdout), excludeCode, excludeStorage)
 }
