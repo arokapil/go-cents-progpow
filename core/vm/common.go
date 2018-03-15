@@ -21,15 +21,19 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/holiman/uint256"
 )
 
 // calculates the memory size required for a step
-func calcMemSize(off, l *big.Int) *big.Int {
-	if l.Sign() == 0 {
-		return common.Big0
+func calcMemSize(off, l *uint256.Int) (uint64, bool) {
+	if l.IsZero() {
+		return 0, false
 	}
-
-	return new(big.Int).Add(off, l)
+	size := new(uint256.Int)
+	if overflow := size.AddOverflow(off, l); overflow {
+		return 0, true
+	}
+	return size.Uint64WithOverflow()
 }
 
 // getData returns a slice from the data based on the start and size and pads

@@ -173,7 +173,7 @@ func (in *Interpreter) Run(contract *Contract, input []byte) (ret []byte, err er
 		// calculate the new memory size and expand the memory to fit
 		// the operation
 		if operation.memorySize != nil {
-			memSize, overflow := bigUint64(operation.memorySize(stack))
+			memSize, overflow := operation.memorySize(stack)
 			if overflow {
 				return nil, errGasUintOverflow
 			}

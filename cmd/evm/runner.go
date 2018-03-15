@@ -109,7 +109,9 @@ func runCmd(ctx *cli.Context) error {
 	if ctx.GlobalString(SenderFlag.Name) != "" {
 		sender = common.HexToAddress(ctx.GlobalString(SenderFlag.Name))
 	}
-	statedb.CreateAccount(sender)
+	if !statedb.Exist(sender){
+		statedb.CreateAccount(sender)
+	}
 
 	if ctx.GlobalString(ReceiverFlag.Name) != "" {
 		receiver = common.HexToAddress(ctx.GlobalString(ReceiverFlag.Name))
