@@ -1338,3 +1338,146 @@ func TestLargeReorgTrieGC(t *testing.T) {
 		}
 	}
 }
+
+func benchLargeBlocks(b *testing.B, numTxs int) {
+	signer := types.HomesteadSigner{}
+	var (
+		testBankKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
+		testBankFunds   = big.NewInt(1000000000000000000)
+		gspec           = Genesis{
+			Config:   params.TestChainConfig,
+			Alloc:    GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+			GasLimit: 100000000,
+		}
+		shared []*types.Block
+	)
+	engine := ethash.NewFaker()
+
+	db, _ := ethdb.NewMemDatabase()
+	genesis := gspec.MustCommit(db)
+
+	//var numTxs = 10
+	blockGenerator := func(i int, block *BlockGen) {
+		block.SetCoinbase(common.Address{1})
+		for txi := 0; txi < numTxs; txi++ {
+			recipient := common.BigToAddress(big.NewInt(0).SetUint64(1337 + uint64(i*numTxs+txi)))
+			tx, err := types.SignTx(types.NewTransaction(uint64(i*numTxs+txi), recipient, big.NewInt(1), params.TxGas, big.NewInt(100), nil), signer, testBankKey)
+			if err != nil {
+				b.Error(err)
+			}
+			block.AddTx(tx)
+		}
+	}
+	shared, _ = GenerateChain(gspec.Config, genesis, engine, db, 64, blockGenerator)
+
+	//shared, _ = GenerateChain(params.TestChainConfig, genesis, engine, db, 64, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+
+	// Import the shared chain and the original canonical one
+	diskdb, _ := ethdb.NewMemDatabase()
+	gspec.MustCommit(diskdb)
+
+	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{})
+	if err != nil {
+		b.Fatalf("failed to create tester chain: %v", err)
+	}
+	// This is the test
+	b.StartTimer()
+	if _, err := chain.InsertChain(shared); err != nil {
+		b.Fatalf("failed to insert shared chain: %v", err)
+	}
+	b.StopTimer()
+	if got := chain.CurrentBlock().Transactions().Len(); got != numTxs {
+		b.Fatalf("Transactions were not included: expected %d, got %d", numTxs, got)
+	}
+}
+
+//20	  57298592 ns/op
+// 57298592 /  64      = 895290.5 ns / block
+// 57298592 / (64* 10) = 89529.05 ns / tx
+func BenchmarkBlockChain_10txblocks(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchLargeBlocks(b, 10)
+	}
+}
+
+//3	 427543872 ns/op
+// 427543872 /  64      = 6680373 ns / block
+// 427543872 / (64* 100) = 66803.73 ns / tx
+func BenchmarkBlockChain_100txblocks(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchLargeBlocks(b, 100)
+	}
+}
+
+//1	4931657973 ns/op
+// 4931657973 / 64          = 77057155.8 ns / block
+// 4931657973 / (64 * 1000) = 77057.15 ns / tx
+// With empty pool
+// 4440920560 ns/op 90%
+// With empty pool +
+// 4525753764
+func BenchmarkBlockChain_1000txblocks(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchLargeBlocks(b, 1000)
+	}
+}
+
+func TestZeroTransferToNonExistant(t *testing.T) {
+	signer := types.HomesteadSigner{}
+	var (
+		testBankKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
+		testBankFunds   = big.NewInt(1000000000000000000)
+		gspec           = Genesis{
+			Config:   params.TestChainConfig,
+			Alloc:    GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+			GasLimit: 100000000,
+		}
+		shared []*types.Block
+		numTxs = 1
+	)
+
+	engine := ethash.NewFaker()
+	db, _ := ethdb.NewMemDatabase()
+	genesis := gspec.MustCommit(db)
+
+	//var numTxs = 10
+	blockGenerator := func(i int, block *BlockGen) {
+		block.SetCoinbase(common.Address{1})
+		for txi := 0; txi < numTxs; txi++ {
+			recipient := common.BigToAddress(big.NewInt(0).SetUint64(1337 + uint64(i*numTxs+txi)))
+			tx, err := types.SignTx(types.NewTransaction(uint64(i*numTxs+txi), recipient, big.NewInt(0), params.TxGas, big.NewInt(100), nil), signer, testBankKey)
+			if err != nil {
+				t.Error(err)
+			}
+			block.AddTx(tx)
+		}
+	}
+	shared, _ = GenerateChain(gspec.Config, genesis, engine, db, 3, blockGenerator)
+
+	//shared, _ = GenerateChain(params.TestChainConfig, genesis, engine, db, 64, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+
+	// Import the shared chain and the original canonical one
+	diskdb, _ := ethdb.NewMemDatabase()
+	gspec.MustCommit(diskdb)
+
+	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{})
+	if err != nil {
+		t.Fatalf("failed to create tester chain: %v", err)
+	}
+	if _, err := chain.InsertChain(shared); err != nil {
+		t.Fatalf("failed to insert shared chain: %v", err)
+	}
+	if got := chain.CurrentBlock().Transactions().Len(); got != numTxs {
+		t.Fatalf("Transactions were not included: expected %d, got %d", numTxs, got)
+	}
+	statedb, _ := chain.State()
+	fmt.Printf("state \n %s ", statedb.Dump())
+}
