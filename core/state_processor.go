@@ -65,14 +65,19 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
 	}
+	receipts = make([]*types.Receipt, len(block.Transactions()))
 	// Iterate over and process the individual transactions
+	bhash := block.Hash()
+	//blockContext := &vm.Context{}
 	for i, tx := range block.Transactions() {
-		statedb.Prepare(tx.Hash(), block.Hash(), i)
+		statedb.Prepare(tx.Hash(), bhash, i)
+//		receipt, _, err := ApplyTransaction2(blockContext, p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
 		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
 		if err != nil {
 			return nil, nil, 0, err
 		}
-		receipts = append(receipts, receipt)
+		//receipts = append(receipts, receipt)
+		receipts[i] = receipt
 		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
@@ -95,6 +100,52 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
+	// Apply the transaction to the current state (included in the env)
+	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
+	if err != nil {
+		return nil, 0, err
+	}
+	// Update the state with pending changes
+	var root []byte
+	if config.IsByzantium(header.Number) {
+		statedb.Finalise(true)
+	} else {
+		root = statedb.IntermediateRoot(config.IsEIP158(header.Number)).Bytes()
+	}
+	*usedGas += gas
+
+	// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx
+	// based on the eip phase, we're passing wether the root touch-delete accounts.
+	receipt := types.NewReceipt(root, failed, *usedGas)
+	receipt.TxHash = tx.Hash()
+	receipt.GasUsed = gas
+	// if the transaction created a contract, store the creation address in the receipt.
+	if msg.To() == nil {
+		receipt.ContractAddress = crypto.CreateAddress(vmenv.Context.Origin, tx.Nonce())
+	}
+	// Set the receipt logs and create a bloom for filtering
+	receipt.Logs = statedb.GetLogs(tx.Hash())
+	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+
+	return receipt, gas, err
+}
+
+func ApplyTransaction2(blockContext *vm.Context, config *params.ChainConfig, bc *BlockChain, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, uint64, error) {
+	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
+	if err != nil {
+		return nil, 0, err
+	}
+	if blockContext.GasLimit == 0{
+		// Create a new context to be used in the EVM environment
+		bcontext := NewEVMContext(msg, header, bc, author)
+		blockContext = &bcontext
+	}else{
+		blockContext.Origin = msg.From()
+		blockContext.GasPrice = msg.GasPrice()
+	}
+	// Create a new environment which holds all relevant information
+	// about the transaction and calling mechanisms.
+	vmenv := vm.NewEVM(*blockContext, statedb, config, cfg)
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
 	if err != nil {

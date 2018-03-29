@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"fmt"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
@@ -131,6 +132,13 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 func (evm *EVM) Cancel() {
 	atomic.StoreInt32(&evm.abort, 1)
 }
+func (evm *EVM) isPrecompiled(addr common.Address) bool{
+	precompiles := PrecompiledContractsHomestead
+	if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
+		precompiles = PrecompiledContractsByzantium
+	}
+	return precompiles[addr] == nil
+}
 
 // Call executes the contract associated with the addr with the given input as
 // parameters. It also handles any necessary value transfer required and takes
@@ -152,29 +160,31 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	var (
 		to       = AccountRef(addr)
-		snapshot = evm.StateDB.Snapshot()
 	)
 	if !evm.StateDB.Exist(addr) {
-		precompiles := PrecompiledContractsHomestead
-		if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
-			precompiles = PrecompiledContractsByzantium
-		}
-		if precompiles[addr] == nil && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
+			if !evm.isPrecompiled(addr) && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
 			return nil, gas, nil
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
 
+	if !evm.isPrecompiled(addr){
+		if code := evm.StateDB.GetCode(addr); len(code) == 0{
+			return nil, gas, nil
+		}
+	}
+	var snapshot = evm.StateDB.Snapshot()
+
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
 	contract.SetCallCode(&addr, evm.StateDB.GetCodeHash(addr), evm.StateDB.GetCode(addr))
 
-	start := time.Now()
 
 	// Capture the tracer start/end events in debug mode
 	if evm.vmConfig.Debug && evm.depth == 0 {
+		start := time.Now()
 		evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
 
 		defer func() { // Lazy evaluation of the parameters
@@ -192,7 +202,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			contract.UseGas(contract.Gas)
 		}
 	}
+
+
 	return ret, contract.Gas, err
+	//return nil, gas, nil
 }
 
 // CallCode executes the contract associated with the addr with the given input

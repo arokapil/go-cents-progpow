@@ -77,8 +77,9 @@ func NewInterpreter(evm *EVM, cfg Config) *Interpreter {
 		evm:      evm,
 		cfg:      cfg,
 		gasTable: evm.ChainConfig().GasTable(evm.BlockNumber),
-		intPool:  newIntPool(),
-	}
+		intPool:  newEmptyPool(),
+		//intPool:  newIntPool(),
+		}
 }
 
 func (in *Interpreter) enforceRestrictions(op OpCode, operation operation, stack *Stack) error {

@@ -28,6 +28,9 @@ type intPool struct {
 	pool *Stack
 }
 
+func newEmptyPool() *intPool {
+	return &intPool{pool: &Stack{data: make([]*big.Int, 0)}}
+}
 func newIntPool() *intPool {
 	return &intPool{pool: newstack()}
 }
