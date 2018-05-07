@@ -166,15 +166,15 @@ var (
 	}
 	IterativeOutputFlag = cli.BoolFlag{
 		Name:  "iterative",
-		Usage: "Print streaming json iteratively as json objects, delimited by lines",
+		Usage: "Print streaming JSON iteratively as json objects, delimited by newlines",
 	}
 	ExcludeStorageFlag = cli.BoolFlag{
 		Name:  "nostorage",
-		Usage: "When dumping state, do not include storage (saves db lookups)",
+		Usage: "When set, exclude storage entries (saves db lookups)",
 	}
 	ExcludeCodeFlag = cli.BoolFlag{
 		Name:  "nocode",
-		Usage: "When dumping state, do not include code (saves db lookups)",
+		Usage: "When set, exclude contract code (saves db lookups)",
 	}
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
