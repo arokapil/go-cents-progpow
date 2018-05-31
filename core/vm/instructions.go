@@ -124,10 +124,24 @@ func opSmod(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 
 func opExp(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 	base, exponent := stack.pop(), stack.pop()
-	stack.push(math.Exp(base, exponent))
-
-	evm.interpreter.intPool.put(base, exponent)
-
+	// some shortcuts
+	cmpToOne := exponent.Cmp(big1)
+	if cmpToOne < 0 { // Exponent is zero
+		// x ^ 0 == 1
+		stack.push(base.SetUint64(1))
+		evm.interpreter.intPool.put(exponent)
+	} else if base.Sign() == 0 {
+		// 0 ^ y, if y != 0, == 0
+		stack.push(base.SetUint64(0))
+		evm.interpreter.intPool.put(exponent)
+	} else if cmpToOne == 0 { // Exponent is one
+		// x ^ 1 == x
+		stack.push(base)
+		evm.interpreter.intPool.put(exponent)
+	} else {
+		stack.push(math.Exp(base, exponent))
+		evm.interpreter.intPool.put(base, exponent)
+	}
 	return nil, nil
 }
 
