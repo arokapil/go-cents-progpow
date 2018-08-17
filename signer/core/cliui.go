@@ -110,7 +110,7 @@ func (ui *CommandlineUI) ApproveTx(request *SignTxRequest) (SignTxResponse, erro
 			fmt.Printf("\nWARNING: Invalid checksum on to-address!\n\n")
 		}
 	} else {
-		fmt.Printf("to:    <contact creation>\n")
+		fmt.Printf("To:    <contact creation>\n")
 	}
 	fmt.Printf("from:     %v\n", request.Transaction.From.String())
 	fmt.Printf("value:    %v wei\n", weival)
@@ -120,7 +120,6 @@ func (ui *CommandlineUI) ApproveTx(request *SignTxRequest) (SignTxResponse, erro
 	if request.Transaction.Data != nil {
 		d := *request.Transaction.Data
 		if len(d) > 0 {
-
 			fmt.Printf("data:     %v\n", hexutil.Encode(d))
 		}
 	}
@@ -192,7 +191,7 @@ func (ui *CommandlineUI) ApproveImport(request *ImportRequest) (ImportResponse, 
 
 // ApproveListing prompt the user for confirmation to list accounts
 // the list of accounts to list can be modified by the UI
-func (ui *CommandlineUI) ApproveListing(request *ListRequest) (ListResponse, error) {
+func (ui *CommandlineUI) ApproveListing(request *ListAccountsRequest) (ListAccountsResponse, error) {
 
 	ui.mu.Lock()
 	defer ui.mu.Unlock()
@@ -208,9 +207,9 @@ func (ui *CommandlineUI) ApproveListing(request *ListRequest) (ListResponse, err
 	fmt.Printf("-------------------------------------------\n")
 	showMetadata(request.Meta)
 	if !ui.confirm() {
-		return ListResponse{nil}, nil
+		return ListAccountsResponse{nil}, nil
 	}
-	return ListResponse{request.Accounts}, nil
+	return ListAccountsResponse{request.Accounts}, nil
 }
 
 // ApproveNewAccount prompt the user for confirmation to create new Account, and reveal to caller
