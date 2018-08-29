@@ -80,6 +80,7 @@ func (ui *HeadlessUI) ApproveImport(request *ImportRequest) (ImportResponse, err
 	}
 	return ImportResponse{false, "", ""}, nil
 }
+
 func (ui *HeadlessUI) ApproveListing(request *ListAccountsRequest) (ListAccountsResponse, error) {
 
 	switch <-ui.controller {

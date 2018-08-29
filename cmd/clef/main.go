@@ -51,7 +51,7 @@ import (
 const ExternalAPIVersion = "3.0.0"
 
 // InternalAPIVersion -- see intapi_changelog.md
-const InternalAPIVersion = "2.0.0"
+const InternalAPIVersion = "3.0.0"
 
 const legalWarning = `
 WARNING! 
@@ -589,8 +589,8 @@ func testExternalUI(api *core.SignerAPI) {
 
 	_, err = api.SignTransaction(ctx, core.SendTxArgs{From: common.MixedcaseAddress{}}, nil)
 	checkErr("SignTransaction", err)
-	_, err = api.Sign(ctx, common.MixedcaseAddress{}, common.Hex2Bytes("01020304"))
-	checkErr("Sign", err)
+	//_, err = api.Sign(ctx, common.MixedcaseAddress{}, common.Hex2Bytes("01020304"))
+	//checkErr("Sign", err)
 	_, err = api.List(ctx)
 	checkErr("List", err)
 	_, err = api.New(ctx)
