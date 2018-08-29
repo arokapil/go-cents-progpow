@@ -25,14 +25,15 @@ func TestBlockchain(t *testing.T) {
 
 	bt := new(testMatcher)
 	// General state tests are 'exported' as blockchain tests, but we can run them natively.
-	bt.skipLoad(`^GeneralStateTests/`)
+	//bt.skipLoad(`^GeneralStateTests/`)
 	// Skip random failures due to selfish mining test.
 	bt.skipLoad(`^bcForgedTest/bcForkUncle\.json`)
 	bt.skipLoad(`^bcMultiChainTest/(ChainAtoChainB_blockorder|CallContractFromNotBestBlock)`)
 	bt.skipLoad(`^bcTotalDifficultyTest/(lotsOfLeafs|lotsOfBranches|sideChainWithMoreTransactions)`)
 	// This test is broken
-	bt.skipLoad(`blockhashNonConstArg_Constantinople`)
+	bt.fails(`blockhashNonConstArg_Constantinople`, "Broken test")
 
+	bt.fails(`^GeneralStateTests/stRevertTest/RevertPrecompiledTouch_d0g0v0.*`, "Known failure")
 	// Still failing tests
 	//	bt.skipLoad(`^bcWalletTest.*_Byzantium$`)
 
