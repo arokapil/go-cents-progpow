@@ -73,6 +73,10 @@ func init() {
 		VerbosityFlag,
 		DumpFlag,
 		StatDumpFlag,
+		MachineFlag,
+		CoinbaseFlag,
+		DisableMemoryFlag,
+		DisableStackFlag,
 	}
 	app.Commands = []cli.Command{
 		stateTestCommand,
