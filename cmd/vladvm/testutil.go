@@ -101,13 +101,14 @@ func (t *VladVmTransition) Run(vmconfig vm.Config) (*state.StateDB, []common.Has
 	var rejected []common.Hash
 	gasUsed := uint64(0)
 	var receipts types.Receipts
-	for _, tx := range t.json.Tx {
+	for i, tx := range t.json.Tx {
 		msg, err := tx.AsMessage(signer)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "rejected tx: 0x%x, could not recover sender: %v\n", tx.Hash(), err)
 			rejected = append(rejected, tx.Hash())
 			continue
 		}
+		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		context := core.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
 		context.GetHash = blockHashGetter
 		evm := vm.NewEVM(context, statedb, config, vmconfig)
