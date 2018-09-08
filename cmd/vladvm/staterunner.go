@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"io/ioutil"
 	"os"
 
@@ -39,8 +41,10 @@ var stateTestCommand = cli.Command{
 // ExecutionResult contains the execution status after running a state test, any
 // error that might have occurred and a dump of the final state if requested.
 type ExecutionResult struct {
-	Error string      `json:"error,omitempty"`
-	State *state.Dump `json:"state,omitempty"`
+	Error    string         `json:"error,omitempty"`
+	State    *state.Dump    `json:"state,omitempty"`
+	Receipts types.Receipts `json:"receipts,omitempty"`
+	Rejected []common.Hash  `json:"rejected,omitempty"`
 }
 
 func stateTestCmd(ctx *cli.Context) error {
@@ -75,28 +79,32 @@ func stateTestCmd(ctx *cli.Context) error {
 	// Load the test content from the input file
 	src, err := ioutil.ReadFile(ctx.Args().First())
 	if err != nil {
-		return fmt.Errorf("Failed reading file: %v" , err)
+		return fmt.Errorf("Failed reading file: %v", err)
 	}
 	var test VladVmTransition
 	if err = json.Unmarshal(src, &test); err != nil {
-		return fmt.Errorf("Failed unmarshaling file: %v" , err)
+		return fmt.Errorf("Failed unmarshaling file: %v", err)
 	}
 	// Iterate over all the tests, run them and aggregate the results
 	cfg := vm.Config{
 		Tracer: tracer,
 		Debug:  ctx.GlobalBool(DebugFlag.Name) || ctx.GlobalBool(MachineFlag.Name),
 	}
+	var result ExecutionResult
 	// Run the test and aggregate the result
-	state, err := test.Run(cfg)
-	result := &ExecutionResult{}
-	if err != nil{
-		result.Error = fmt.Sprintf("Error: %v", err)
-	}
-	if state != nil {
+	state, rejected, receipts, err := test.Run(cfg)
+	if err != nil {
+		result = ExecutionResult{
+			Error: fmt.Sprintf("Error: %v", err),
+		}
+	} else {
 		dump := state.RawDump()
-		result.State = &dump
+		result = ExecutionResult{
+			Receipts: receipts,
+			Rejected: rejected,
+			State:    &dump,
+		}
 	}
-
 	// print state root for evmlab tracing (already committed above, so no need to delete objects again
 	if ctx.GlobalBool(MachineFlag.Name) && state != nil {
 		fmt.Fprintf(os.Stderr, "{\"stateRoot\": \"%x\"}\n", state.IntermediateRoot(false))

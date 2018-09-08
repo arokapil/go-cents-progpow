@@ -79,7 +79,7 @@ func blockHashGetter(n uint64) common.Hash {
 }
 
 // Run executes a specific subtest.
-func (t *VladVmTransition) Run(vmconfig vm.Config) (*state.StateDB, error) {
+func (t *VladVmTransition) Run(vmconfig vm.Config) (*state.StateDB, []common.Hash, types.Receipts, error) {
 	// Running on constantinople rules!
 	config := &params.ChainConfig{
 		ChainID:             big.NewInt(1),
@@ -98,40 +98,52 @@ func (t *VladVmTransition) Run(vmconfig vm.Config) (*state.StateDB, error) {
 	statedb := MakePreState(ethdb.NewMemDatabase(), t.json.Pre)
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(block.GasLimit())
-	var rejected []*types.Transaction
+	var rejected []common.Hash
+	gasUsed := uint64(0)
+	var receipts types.Receipts
 	for _, tx := range t.json.Tx {
 		msg, err := tx.AsMessage(signer)
 		if err != nil {
-			rejected = append(rejected, tx)
+			fmt.Fprintf(os.Stderr, "rejected tx: 0x%x, could not recover sender: %v\n", tx.Hash(), err)
+			rejected = append(rejected, tx.Hash())
+			continue
 		}
 		context := core.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
 		context.GetHash = blockHashGetter
 		evm := vm.NewEVM(context, statedb, config, vmconfig)
 		snapshot := statedb.Snapshot()
 		// (ret []byte, usedGas uint64, failed bool, err error)
-		_, _, _, err = core.ApplyMessage(evm, msg, gaspool)
+		_, gas, failed, err := core.ApplyMessage(evm, msg, gaspool)
 		if err != nil {
 			statedb.RevertToSnapshot(snapshot)
-			rejected = append(rejected, tx)
+			fmt.Fprintf(os.Stderr, "rejected tx: 0x%x from 0x%x: %v\n", tx.Hash(), msg.From(), err)
+			rejected = append(rejected, tx.Hash())
+		} else {
+			gasUsed += gas
+			// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx
+			// based on the eip phase, we're passing whether the root touch-delete accounts.
+			var root []byte
+			receipt := types.NewReceipt(root, failed, gasUsed)
+			receipt.TxHash = tx.Hash()
+			receipt.GasUsed = gas
+			// if the transaction created a contract, store the creation address in the receipt.
+			if msg.To() == nil {
+				receipt.ContractAddress = crypto.CreateAddress(evm.Context.Origin, tx.Nonce())
+			}
+			// Set the receipt logs and create a bloom for filtering
+			receipt.Logs = statedb.GetLogs(tx.Hash())
+			receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+			receipts = append(receipts, receipt)
 		}
 
-	}
-	for _, tx := range rejected {
-
-		msg, err := tx.AsMessage(signer)
-		if err == nil{
-			fmt.Fprintf(os.Stderr, "rejected tx: 0x%x from 0x%x\n", tx.Hash(), msg.From())
-		}else{
-			fmt.Fprintf(os.Stderr, "rejected tx: 0x%x: could not recover sender : %v\n", tx.Hash(), err)
-		}
 	}
 	// Commit block
 	_, err := statedb.Commit(config.IsEIP158(block.Number()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not commit state: %v", err)
-		return nil, err
+		return nil, nil, nil, err
 	}
-	return statedb, nil
+	return statedb, rejected, receipts, nil
 }
 
 func MakePreState(db ethdb.Database, accounts core.GenesisAlloc) *state.StateDB {
