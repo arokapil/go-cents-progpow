@@ -1,11 +1,16 @@
+## VladVM
+
 This is the vlad vm, which executes a json-file describing the prestate, and applies a set of transactions in the order they appear.
 See `example.json` for specific syntax.
 
 This awesome VM uses uses `Constantinople` rules!
+
 OBS: The transactions use the same chain id as mainnet, so be careful (because anything can be replayed across them)
 
 The example file contains two identical transactions, after each other. This is fully legit, and demonstrates that the second one is rejected
 since it has an invalid nonce.
+
+## Example
 
 When running it:
 ```
@@ -43,11 +48,12 @@ rejected tx: 0x0557bacce3375c98d806609b8d5043072f0b6a8bae45ae5a67a00d3a1a18d673 
   }
 }
 ```
+## Notes 
 
 Things of note:
 
 - No 'mining-reward' is applied per se, aside from the transaction fees
 - Info about rejected transactions wind up on `stderr`, to not 'pollute' the `json` which can be reused for the next state transition
-- and, again: TRANSACIONS USE THE SAME CHAINID AS MAINET - REPLAY IS FULLY POSSIBLE
+- and, again: TRANSACTIONS USE THE SAME CHAINID AS MAINET - REPLAY IS FULLY POSSIBLE
 
 This written for ethberlin hackathon, do not use this in real life. 
