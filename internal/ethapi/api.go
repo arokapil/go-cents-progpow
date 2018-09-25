@@ -197,15 +197,12 @@ func NewPrivateAccountAPI(b Backend, nonceLock *AddrLocker) *PrivateAccountAPI {
 }
 
 // ListAccounts will return a list of addresses for accounts this node manages.
-func (s *PrivateAccountAPI) ListAccounts() []common.Address {
-	addresses := make([]common.Address, 0) // return [] instead of nil if empty
+func (s *PrivateAccountAPI) ListAccounts() ([]common.Address, error) {
 	if s.extapi != nil {
-		if accounts, err := s.extapi.ListAccounts(); err == nil {
-			return accounts
-		}
-		return addresses
+		return s.extapi.ListAccounts()
 	}
-	return addresses
+	// return [] instead of nil if empty
+	return []common.Address{}, errors.New("external signer not configured")
 }
 
 // rawWallet is a JSON representation of an accounts.Wallet interface, with its
@@ -1318,7 +1315,7 @@ func NewExternalSigner(endpoint string) (*ExternalSignerClient, error) {
 }
 
 func (api *ExternalSignerClient) SignTransaction(ctx context.Context, args SendTxArgs) (*types.Transaction, error) {
-	if api == nil{
+	if api == nil {
 		return nil, errors.New("External API not initialized")
 	}
 	res := SignTransactionResult{}
@@ -1328,7 +1325,7 @@ func (api *ExternalSignerClient) SignTransaction(ctx context.Context, args SendT
 	return res.Tx, nil
 }
 func (api *ExternalSignerClient) ListAccounts() ([]common.Address, error) {
-	if api == nil{
+	if api == nil {
 		return []common.Address{}, errors.New("External API not initialized")
 	}
 	var res []common.Address
@@ -1338,7 +1335,7 @@ func (api *ExternalSignerClient) ListAccounts() ([]common.Address, error) {
 	return res, nil
 }
 func (api *ExternalSignerClient) NewAccount() (common.Address, error) {
-	if api == nil{
+	if api == nil {
 		return common.Address{}, errors.New("External API not initialized")
 	}
 	var res accounts.Account
@@ -1349,7 +1346,7 @@ func (api *ExternalSignerClient) NewAccount() (common.Address, error) {
 	return res.Address, nil
 }
 func (api *ExternalSignerClient) SignCliqueBlock(a common.Address, rlpBlock hexutil.Bytes) (hexutil.Bytes, error) {
-	if api == nil{
+	if api == nil {
 		return nil, errors.New("External API not initialized")
 	}
 	var sig hexutil.Bytes
