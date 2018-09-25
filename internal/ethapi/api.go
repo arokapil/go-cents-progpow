@@ -191,15 +191,14 @@ func NewPrivateAccountAPI(b Backend, nonceLock *AddrLocker) *PrivateAccountAPI {
 	p := &PrivateAccountAPI{
 		nonceLock: nonceLock,
 		b:         b,
-		extapi:    b.ExternalSigner(),
 	}
 	return p
 }
 
 // ListAccounts will return a list of addresses for accounts this node manages.
 func (s *PrivateAccountAPI) ListAccounts() ([]common.Address, error) {
-	if s.extapi != nil {
-		return s.extapi.ListAccounts()
+	if extapi := s.b.ExternalSigner(); extapi != nil {
+		return extapi.ListAccounts()
 	}
 	// return [] instead of nil if empty
 	return []common.Address{}, errors.New("external signer not configured")
