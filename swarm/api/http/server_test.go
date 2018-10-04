@@ -477,11 +477,11 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 		var wait func(context.Context) error
 		ctx := context.TODO()
 		addr[i], wait, err = srv.FileStore.Store(ctx, reader[i], int64(len(mf)), encrypted)
-		for j := i + 1; j < len(testmanifest); j++ {
-			testmanifest[j] = strings.Replace(testmanifest[j], fmt.Sprintf("<key%v>", i), addr[i].Hex(), -1)
-		}
 		if err != nil {
 			t.Fatal(err)
+		}
+		for j := i + 1; j < len(testmanifest); j++ {
+			testmanifest[j] = strings.Replace(testmanifest[j], fmt.Sprintf("<key%v>", i), addr[i].Hex(), -1)
 		}
 		err = wait(ctx)
 		if err != nil {
@@ -501,7 +501,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 		var respbody []byte
 
 		url := srv.URL + "/bzz-raw:/"
-		if k[:] != "" {
+		if k != "" {
 			url += rootRef + "/" + k[1:] + "?content_type=text/plain"
 		}
 		resp, err = http.Get(url)
@@ -515,7 +515,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 			isexpectedfailrequest := false
 
 			for _, r := range expectedfailrequests {
-				if k[:] == r {
+				if k == r {
 					isexpectedfailrequest = true
 				}
 			}
@@ -530,7 +530,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 		var respbody []byte
 
 		url := srv.URL + "/bzz-hash:/"
-		if k[:] != "" {
+		if k != "" {
 			url += rootRef + "/" + k[1:]
 		}
 		resp, err = http.Get(url)
@@ -547,7 +547,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 			isexpectedfailrequest := false
 
 			for _, r := range expectedfailrequests {
-				if k[:] == r {
+				if k == r {
 					isexpectedfailrequest = true
 				}
 			}
@@ -599,7 +599,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 	} {
 		k := c.path
 		url := srv.URL + "/bzz-list:/"
-		if k[:] != "" {
+		if k != "" {
 			url += rootRef + "/" + k[1:]
 		}
 		t.Run("json list "+c.path, func(t *testing.T) {
@@ -618,7 +618,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 				isexpectedfailrequest := false
 
 				for _, r := range expectedfailrequests {
-					if k[:] == r {
+					if k == r {
 						isexpectedfailrequest = true
 					}
 				}
@@ -650,7 +650,7 @@ func testBzzGetPath(encrypted bool, t *testing.T) {
 					isexpectedfailrequest := false
 
 					for _, r := range expectedfailrequests {
-						if k[:] == r {
+						if k == r {
 							isexpectedfailrequest = true
 						}
 					}
